@@ -1,0 +1,28 @@
+{
+  "@context": {
+    "title": "https://www.w3.org/2019/wot/td#title",
+    "description": "https://www.w3.org/2019/wot/td#description",
+    "properties": "https://www.w3.org/2019/wot/td#properties",
+    "actions": "https://www.w3.org/2019/wot/td#actions",
+    "events": "https://www.w3.org/2019/wot/td#events",
+    "forms": "https://www.w3.org/2019/wot/td#forms",
+    "links": "https://www.w3.org/2019/wot/td#links",
+    "href": "https://www.w3.org/2019/wot/hypermedia#hasTarget",
+    "op": "https://www.w3.org/2019/wot/hypermedia#forContentType",
+    "contentType": "https://www.w3.org/2019/wot/hypermedia#contentType",
+    "type": "@type",
+
+    "Thing": "https://www.w3.org/2019/wot/td#Thing",
+    "RobotVacuum": "https://example.org/wot/RobotVacuum",
+
+    "status": "https://example.org/wot/status",
+    "battery": "https://example.org/wot/battery",
+    "currentTask": "https://example.org/wot/currentTask",
+
+    "createTask": "https://example.org/wot/createTask",
+    "updateTask": "https://example.org/wot/updateTask",
+    "deleteTask": "https://example.org/wot/deleteTask",
+
+    "statusChanged": "https://example.org/wot/statusChanged"
+  }
+}

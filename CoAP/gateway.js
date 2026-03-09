@@ -1,7 +1,9 @@
 const coap = require('coap');
 const express = require('express');
 const cors = require('cors');
-
+const fs = require('fs');
+const path = require('path');
+const { buildRobotTD, buildTDDirectory } = require('./wot/td-generator');
 const COAP_PORT = 5683;
 const HTTP_PORT = 3000;
 const TASK_DURATION_SECONDS = 30;
@@ -420,6 +422,54 @@ function coapRequest(method, pathname, body = null) {
     req.end();
   });
 }
+app.get('/api/wot/context', (req, res) => {
+  const contextPath = path.join(__dirname, 'wot', 'wot-context.jsonld');
+
+  try {
+    const content = fs.readFileSync(contextPath, 'utf8');
+    res.setHeader('Content-Type', 'application/ld+json');
+    res.send(content);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to load JSON-LD context' });
+  }
+});
+
+app.get('/api/td/search', (req, res) => {
+  const type = req.query.type;
+
+  let result = Object.values(robots);
+
+  if (type && type !== 'RobotVacuum') {
+    result = [];
+  }
+
+  res.json({
+    count: result.length,
+    things: result.map(robot => ({
+      id: robot.id,
+      name: robot.name,
+      td: `http://localhost:${HTTP_PORT}/api/td/${robot.id}`
+    }))
+  });
+});
+
+app.get('/api/td/:id', (req, res) => {
+  const robot = robots[req.params.id];
+
+  if (!robot) {
+    return res.status(404).json({ error: 'Thing not found' });
+  }
+
+  const td = buildRobotTD(robot, `http://localhost:${HTTP_PORT}`);
+  res.setHeader('Content-Type', 'application/td+json');
+  res.json(td);
+});
+
+app.get('/api/td', (req, res) => {
+  const directory = buildTDDirectory(Object.values(robots), `http://localhost:${HTTP_PORT}`);
+  res.json(directory);
+});
+
 
 app.get('/api/robots', (req, res) => {
   const result = Object.values(robots).map(robot => ({
