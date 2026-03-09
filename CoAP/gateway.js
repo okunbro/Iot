@@ -4,9 +4,11 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const { buildRobotTD, buildTDDirectory } = require('./wot/td-generator');
+
 const COAP_PORT = 5683;
 const HTTP_PORT = 3000;
 const TASK_DURATION_SECONDS = 30;
+const BATTERY_NOMINAL_VOLTAGE = 14.4;
 
 const app = express();
 app.use(cors());
@@ -18,6 +20,8 @@ const robots = {
     name: 'RoboVac Alpha',
     status: 'cleaning',
     battery: 82,
+    batteryCapacitymAh: 2400,
+    batteryNominalVoltage: BATTERY_NOMINAL_VOLTAGE,
     tasks: [
       { id: 1, title: 'Clean kitchen', status: 'active', createdAt: 1, remainingSeconds: 20 },
       { id: 2, title: 'Clean hallway', status: 'pending', createdAt: 2, remainingSeconds: 30 }
@@ -28,6 +32,8 @@ const robots = {
     name: 'RoboVac Beta',
     status: 'cleaning',
     battery: 54,
+    batteryCapacitymAh: 2600,
+    batteryNominalVoltage: BATTERY_NOMINAL_VOLTAGE,
     tasks: [
       { id: 1, title: 'Clean bedroom', status: 'active', createdAt: 1, remainingSeconds: 20 }
     ]
@@ -37,6 +43,8 @@ const robots = {
     name: 'RoboVac Gamma',
     status: 'charging',
     battery: 19,
+    batteryCapacitymAh: 3200,
+    batteryNominalVoltage: BATTERY_NOMINAL_VOLTAGE,
     tasks: [
       { id: 1, title: 'Clean living room', status: 'done', createdAt: 1, remainingSeconds: 15 }
     ]
@@ -44,6 +52,10 @@ const robots = {
 };
 
 const observers = new Map();
+
+function getBatteryCapacityWh(robot) {
+  return Number(((robot.batteryCapacitymAh * robot.batteryNominalVoltage) / 1000).toFixed(2));
+}
 
 function sendCoapJson(res, code, payload) {
   res.code = code;
@@ -82,18 +94,24 @@ function getCurrentTaskTitle(robot) {
   return activeTask ? activeTask.title : 'No active task';
 }
 
-function notifyStatus(robotId) {
-  const path = `/robots/${robotId}/status`;
-  const subs = observers.get(path) || [];
-  const robot = robots[robotId];
-
-  const payload = JSON.stringify({
+function buildRobotStatusPayload(robot) {
+  return {
     id: robot.id,
     name: robot.name,
     status: robot.status,
     battery: robot.battery,
+    batteryCapacitymAh: robot.batteryCapacitymAh,
+    batteryNominalVoltage: robot.batteryNominalVoltage,
+    batteryCapacityWh: getBatteryCapacityWh(robot),
     currentTask: getCurrentTaskTitle(robot)
-  });
+  };
+}
+
+function notifyStatus(robotId) {
+  const path = `/robots/${robotId}/status`;
+  const subs = observers.get(path) || [];
+  const robot = robots[robotId];
+  const payload = JSON.stringify(buildRobotStatusPayload(robot));
 
   for (const res of subs) {
     res.write(payload);
@@ -102,6 +120,7 @@ function notifyStatus(robotId) {
 
 function reconcileRobotState(robot) {
   const activeTask = getActiveTask(robot);
+  const nextTask = getOldestPendingTask(robot);
 
   if (robot.battery < 10) {
     if (activeTask) {
@@ -116,11 +135,14 @@ function reconcileRobotState(robot) {
     return;
   }
 
-  const nextTask = getOldestPendingTask(robot);
-
   if (nextTask) {
     nextTask.status = 'active';
     robot.status = 'cleaning';
+    return;
+  }
+
+  if (robot.battery >= 100) {
+    robot.status = 'idle';
     return;
   }
 
@@ -159,13 +181,23 @@ function tickRobot(robot) {
   }
 
   if (robot.status === 'charging') {
-    robot.battery = Math.min(100, robot.battery + 1);
-
-    if (robot.battery >= 10) {
-      reconcileRobotState(robot);
+    if (robot.battery < 100) {
+      robot.battery = Math.min(100, robot.battery + 1);
     }
 
+    reconcileRobotState(robot);
     notifyStatus(robot.id);
+    return;
+  }
+
+  if (robot.status === 'idle') {
+    const nextTask = getOldestPendingTask(robot);
+
+    if (nextTask) {
+      reconcileRobotState(robot);
+      notifyStatus(robot.id);
+    }
+
     return;
   }
 
@@ -196,13 +228,7 @@ const coapServer = coap.createServer((req, res) => {
       return sendCoapJson(res, '4.05', { error: 'Method not allowed' });
     }
 
-    const payload = {
-      id: robot.id,
-      name: robot.name,
-      status: robot.status,
-      battery: robot.battery,
-      currentTask: getCurrentTaskTitle(robot)
-    };
+    const payload = buildRobotStatusPayload(robot);
 
     if (isObserve) {
       const key = req.url;
@@ -422,6 +448,7 @@ function coapRequest(method, pathname, body = null) {
     req.end();
   });
 }
+
 app.get('/api/wot/context', (req, res) => {
   const contextPath = path.join(__dirname, 'wot', 'wot-context.jsonld');
 
@@ -470,13 +497,15 @@ app.get('/api/td', (req, res) => {
   res.json(directory);
 });
 
-
 app.get('/api/robots', (req, res) => {
   const result = Object.values(robots).map(robot => ({
     id: robot.id,
     name: robot.name,
     status: robot.status,
     battery: robot.battery,
+    batteryCapacitymAh: robot.batteryCapacitymAh,
+    batteryNominalVoltage: robot.batteryNominalVoltage,
+    batteryCapacityWh: getBatteryCapacityWh(robot),
     currentTask: getCurrentTaskTitle(robot),
     tasksCount: robot.tasks.length
   }));

@@ -1,0 +1,13 @@
+Strategies {
+    everyMinute : "0 * * * * ?"
+    everyHour : "0 0 * * * ?"
+    everyDay : "0 0 0 * * ?"
+    default = everyChange
+}
+
+Items {
+    MeterTotalPower, MeterVoltage, MeterCurrent, MeterPowerFactor, MeterEnergy,
+    MeterPeakPower, MeterCurrentCost, MeterMonthlyEstimate, MeterBaselinePower,
+    MeterRobot1ChargePower, MeterRobot2ChargePower, MeterRobot3ChargePower
+    : strategy = everyChange, everyMinute, restoreOnStartup
+}

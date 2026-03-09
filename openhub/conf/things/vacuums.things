@@ -3,6 +3,8 @@ Thing http:url:robot1 "Robot Vacuum 1" [ baseURL="http://localhost:3000", refres
     Type string : status "Status" [ stateExtension="/api/robots/r1/status", stateTransformation="JSONPATH:$.status" ]
     Type number : battery "Battery" [ stateExtension="/api/robots/r1/status", stateTransformation="JSONPATH:$.battery" ]
     Type string : currentTask "Current task" [ stateExtension="/api/robots/r1/status", stateTransformation="JSONPATH:$.currentTask" ]
+    Type number : batteryCapacity "Battery capacity" [ stateExtension="/api/robots/r1/status", stateTransformation="JSONPATH:$.batteryCapacitymAh" ]
+    Type number : batteryVoltage "Battery voltage" [ stateExtension="/api/robots/r1/status", stateTransformation="JSONPATH:$.batteryNominalVoltage" ]
 }
 
 Thing http:url:robot2 "Robot Vacuum 2" [ baseURL="http://localhost:3000", refresh=2 ] {
@@ -10,6 +12,8 @@ Thing http:url:robot2 "Robot Vacuum 2" [ baseURL="http://localhost:3000", refres
     Type string : status "Status" [ stateExtension="/api/robots/r2/status", stateTransformation="JSONPATH:$.status" ]
     Type number : battery "Battery" [ stateExtension="/api/robots/r2/status", stateTransformation="JSONPATH:$.battery" ]
     Type string : currentTask "Current task" [ stateExtension="/api/robots/r2/status", stateTransformation="JSONPATH:$.currentTask" ]
+    Type number : batteryCapacity "Battery capacity" [ stateExtension="/api/robots/r2/status", stateTransformation="JSONPATH:$.batteryCapacitymAh" ]
+    Type number : batteryVoltage "Battery voltage" [ stateExtension="/api/robots/r2/status", stateTransformation="JSONPATH:$.batteryNominalVoltage" ]
 }
 
 Thing http:url:robot3 "Robot Vacuum 3" [ baseURL="http://localhost:3000", refresh=2 ] {
@@ -17,4 +21,6 @@ Thing http:url:robot3 "Robot Vacuum 3" [ baseURL="http://localhost:3000", refres
     Type string : status "Status" [ stateExtension="/api/robots/r3/status", stateTransformation="JSONPATH:$.status" ]
     Type number : battery "Battery" [ stateExtension="/api/robots/r3/status", stateTransformation="JSONPATH:$.battery" ]
     Type string : currentTask "Current task" [ stateExtension="/api/robots/r3/status", stateTransformation="JSONPATH:$.currentTask" ]
+    Type number : batteryCapacity "Battery capacity" [ stateExtension="/api/robots/r3/status", stateTransformation="JSONPATH:$.batteryCapacitymAh" ]
+    Type number : batteryVoltage "Battery voltage" [ stateExtension="/api/robots/r3/status", stateTransformation="JSONPATH:$.batteryNominalVoltage" ]
 }

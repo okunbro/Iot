@@ -1,0 +1,20 @@
+Number MeterTotalPower "Total power [%.1f W]"
+Number MeterVoltage "Voltage [%.0f V]"
+Number MeterCurrent "Current [%.2f A]"
+Number MeterPowerFactor "Power factor [%.2f]"
+Number MeterEnergy "Energy [%.4f kWh]"
+
+Number MeterPeakPower "Peak power [%.1f W]"
+String MeterPeakHours "Peak hour [%s]"
+Number MeterDemandCharge "Demand charge [%.2f €]"
+
+String MeterCurrentTariff "Current tariff [%s]"
+Number MeterCurrentCost "Current cost [%.4f €]"
+Number MeterMonthlyEstimate "Monthly estimate [%.2f €]"
+
+Number MeterBaselinePower "Baseline power [%.1f W]"
+String MeterSavingsTip "Savings tip [%s]"
+
+Number MeterRobot1ChargePower "Robot 1 charging power [%.1f W]"
+Number MeterRobot2ChargePower "Robot 2 charging power [%.1f W]"
+Number MeterRobot3ChargePower "Robot 3 charging power [%.1f W]"

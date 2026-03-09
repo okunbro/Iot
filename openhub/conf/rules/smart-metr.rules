@@ -1,0 +1,162 @@
+var Number prevBatteryR1 = 82.0
+var Number prevBatteryR2 = 54.0
+var Number prevBatteryR3 = 19.0
+var Number elapsedSeconds = 0.0
+
+var Number GRID_VOLTAGE = 230.0
+var Number POWER_FACTOR = 0.95
+
+var Number DAY_TARIFF = 0.28
+var Number NIGHT_TARIFF = 0.16
+var Number DEMAND_RATE = 8.0
+
+rule "Smart meter init"
+when
+    System started
+then
+    if(Robot1Battery.state != NULL && Robot1Battery.state != UNDEF) prevBatteryR1 = Float::parseFloat(Robot1Battery.state.toString)
+    if(Robot2Battery.state != NULL && Robot2Battery.state != UNDEF) prevBatteryR2 = Float::parseFloat(Robot2Battery.state.toString)
+    if(Robot3Battery.state != NULL && Robot3Battery.state != UNDEF) prevBatteryR3 = Float::parseFloat(Robot3Battery.state.toString)
+
+    MeterVoltage.postUpdate(GRID_VOLTAGE)
+    MeterPowerFactor.postUpdate(POWER_FACTOR)
+    MeterTotalPower.postUpdate(0)
+    MeterCurrent.postUpdate(0)
+    MeterEnergy.postUpdate(0)
+    MeterPeakPower.postUpdate(0)
+    MeterPeakHours.postUpdate("-")
+    MeterDemandCharge.postUpdate(0)
+    MeterCurrentTariff.postUpdate("night")
+    MeterCurrentCost.postUpdate(0)
+    MeterMonthlyEstimate.postUpdate(0)
+    MeterBaselinePower.postUpdate(0)
+    MeterSavingsTip.postUpdate("Waiting for charging activity")
+
+    MeterRobot1ChargePower.postUpdate(0)
+    MeterRobot2ChargePower.postUpdate(0)
+    MeterRobot3ChargePower.postUpdate(0)
+end
+
+rule "Virtual smart meter analytics"
+when
+    Time cron "0/2 * * * * ?"
+then
+    if(Robot1Battery.state == NULL || Robot1Battery.state == UNDEF) return;
+    if(Robot2Battery.state == NULL || Robot2Battery.state == UNDEF) return;
+    if(Robot3Battery.state == NULL || Robot3Battery.state == UNDEF) return;
+
+    if(Robot1BatteryCapacity.state == NULL || Robot1BatteryCapacity.state == UNDEF) return;
+    if(Robot2BatteryCapacity.state == NULL || Robot2BatteryCapacity.state == UNDEF) return;
+    if(Robot3BatteryCapacity.state == NULL || Robot3BatteryCapacity.state == UNDEF) return;
+
+    if(Robot1BatteryVoltage.state == NULL || Robot1BatteryVoltage.state == UNDEF) return;
+    if(Robot2BatteryVoltage.state == NULL || Robot2BatteryVoltage.state == UNDEF) return;
+    if(Robot3BatteryVoltage.state == NULL || Robot3BatteryVoltage.state == UNDEF) return;
+
+    val Number b1 = Float::parseFloat(Robot1Battery.state.toString)
+    val Number b2 = Float::parseFloat(Robot2Battery.state.toString)
+    val Number b3 = Float::parseFloat(Robot3Battery.state.toString)
+
+    val String s1 = Robot1Status.state.toString
+    val String s2 = Robot2Status.state.toString
+    val String s3 = Robot3Status.state.toString
+
+    val Number c1 = Float::parseFloat(Robot1BatteryCapacity.state.toString)
+    val Number c2 = Float::parseFloat(Robot2BatteryCapacity.state.toString)
+    val Number c3 = Float::parseFloat(Robot3BatteryCapacity.state.toString)
+
+    val Number v1 = Float::parseFloat(Robot1BatteryVoltage.state.toString)
+    val Number v2 = Float::parseFloat(Robot2BatteryVoltage.state.toString)
+    val Number v3 = Float::parseFloat(Robot3BatteryVoltage.state.toString)
+
+    val Number intervalSeconds = 2.0
+
+    var Number chargedWhR1 = 0.0
+    var Number chargedWhR2 = 0.0
+    var Number chargedWhR3 = 0.0
+
+    if(s1 == "charging" && b1 > prevBatteryR1) {
+        val Number delta = b1 - prevBatteryR1
+        chargedWhR1 = ((c1.doubleValue * v1.doubleValue) / 1000.0) * (delta.doubleValue / 100.0)
+    }
+
+    if(s2 == "charging" && b2 > prevBatteryR2) {
+        val Number delta = b2 - prevBatteryR2
+        chargedWhR2 = ((c2.doubleValue * v2.doubleValue) / 1000.0) * (delta.doubleValue / 100.0)
+    }
+
+    if(s3 == "charging" && b3 > prevBatteryR3) {
+        val Number delta = b3 - prevBatteryR3
+        chargedWhR3 = ((c3.doubleValue * v3.doubleValue) / 1000.0) * (delta.doubleValue / 100.0)
+    }
+
+    val Number powerR1 = chargedWhR1.doubleValue * (3600.0 / intervalSeconds.doubleValue)
+    val Number powerR2 = chargedWhR2.doubleValue * (3600.0 / intervalSeconds.doubleValue)
+    val Number powerR3 = chargedWhR3.doubleValue * (3600.0 / intervalSeconds.doubleValue)
+
+    val Number totalPower = powerR1.doubleValue + powerR2.doubleValue + powerR3.doubleValue
+    val Number totalCurrent = if(totalPower.doubleValue > 0) totalPower.doubleValue / (GRID_VOLTAGE.doubleValue * POWER_FACTOR.doubleValue) else 0.0
+    val Number energyIncrementKWh = (chargedWhR1.doubleValue + chargedWhR2.doubleValue + chargedWhR3.doubleValue) / 1000.0
+
+    val Number previousEnergy = if(MeterEnergy.state == NULL || MeterEnergy.state == UNDEF) 0.0 else Float::parseFloat(MeterEnergy.state.toString)
+    val Number totalEnergy = previousEnergy.doubleValue + energyIncrementKWh.doubleValue
+
+    val Number previousPeak = if(MeterPeakPower.state == NULL || MeterPeakPower.state == UNDEF) 0.0 else Float::parseFloat(MeterPeakPower.state.toString)
+    val Number newPeak = if(totalPower.doubleValue > previousPeak.doubleValue) totalPower.doubleValue else previousPeak.doubleValue
+
+    val hour = now.getHour
+    val String tariffName = if(hour >= 7 && hour < 23) "day" else "night"
+    val Number tariffValue = if(hour >= 7 && hour < 23) DAY_TARIFF.doubleValue else NIGHT_TARIFF.doubleValue
+
+    val Number previousCost = if(MeterCurrentCost.state == NULL || MeterCurrentCost.state == UNDEF) 0.0 else Float::parseFloat(MeterCurrentCost.state.toString)
+    val Number costIncrement = energyIncrementKWh.doubleValue * tariffValue.doubleValue
+    val Number totalCost = previousCost.doubleValue + costIncrement.doubleValue
+
+    val Number previousBaseline = if(MeterBaselinePower.state == NULL || MeterBaselinePower.state == UNDEF) 0.0 else Float::parseFloat(MeterBaselinePower.state.toString)
+    val Number baselinePower = if(previousBaseline.doubleValue == 0.0) totalPower.doubleValue else (previousBaseline.doubleValue * 0.8) + (totalPower.doubleValue * 0.2)
+
+    elapsedSeconds = elapsedSeconds.doubleValue + intervalSeconds.doubleValue
+    val Number daysElapsed = if(elapsedSeconds.doubleValue > 0) elapsedSeconds.doubleValue / 86400.0 else 0.0
+    val Number monthlyEstimate = if(daysElapsed.doubleValue > 0) (totalCost.doubleValue / daysElapsed.doubleValue) * 30.0 else 0.0
+
+    val Number demandCharge = (newPeak.doubleValue / 1000.0) * DEMAND_RATE.doubleValue
+
+    var String savingsTip = "No charging consumption right now"
+
+    if(totalPower.doubleValue > 0 && tariffName == "day") {
+        savingsTip = "Shift charging to night tariff for lower cost"
+    }
+
+    if(totalPower.doubleValue > baselinePower.doubleValue * 1.5 && totalPower.doubleValue > 0) {
+        savingsTip = "Peak charging load detected"
+    }
+
+    if(s1 == "idle" && s2 == "idle" && s3 == "idle") {
+        savingsTip = "All robots are fully charged and idle"
+    }
+
+    MeterRobot1ChargePower.postUpdate(powerR1)
+    MeterRobot2ChargePower.postUpdate(powerR2)
+    MeterRobot3ChargePower.postUpdate(powerR3)
+
+    MeterVoltage.postUpdate(GRID_VOLTAGE)
+    MeterPowerFactor.postUpdate(POWER_FACTOR)
+    MeterTotalPower.postUpdate(totalPower)
+    MeterCurrent.postUpdate(totalCurrent)
+    MeterEnergy.postUpdate(totalEnergy)
+    MeterCurrentTariff.postUpdate(tariffName)
+    MeterCurrentCost.postUpdate(totalCost)
+    MeterMonthlyEstimate.postUpdate(monthlyEstimate)
+    MeterBaselinePower.postUpdate(baselinePower)
+    MeterDemandCharge.postUpdate(demandCharge)
+    MeterSavingsTip.postUpdate(savingsTip)
+
+    if(totalPower.doubleValue > previousPeak.doubleValue) {
+        MeterPeakPower.postUpdate(totalPower)
+        MeterPeakHours.postUpdate(String::format("%02d:00", hour))
+    }
+
+    prevBatteryR1 = b1
+    prevBatteryR2 = b2
+    prevBatteryR3 = b3
+end

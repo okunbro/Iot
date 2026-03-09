@@ -1,14 +1,20 @@
 String Robot1Status "Robot 1 status [%s]" { channel="http:url:robot1:status" }
 Number Robot1Battery "Robot 1 battery [%d %%]" { channel="http:url:robot1:battery" }
 String Robot1CurrentTask "Robot 1 current task [%s]" { channel="http:url:robot1:currentTask" }
+Number Robot1BatteryCapacity "Robot 1 battery capacity [%.0f mAh]" { channel="http:url:robot1:batteryCapacity" }
+Number Robot1BatteryVoltage "Robot 1 battery voltage [%.1f V]" { channel="http:url:robot1:batteryVoltage" }
 
 String Robot2Status "Robot 2 status [%s]" { channel="http:url:robot2:status" }
 Number Robot2Battery "Robot 2 battery [%d %%]" { channel="http:url:robot2:battery" }
 String Robot2CurrentTask "Robot 2 current task [%s]" { channel="http:url:robot2:currentTask" }
+Number Robot2BatteryCapacity "Robot 2 battery capacity [%.0f mAh]" { channel="http:url:robot2:batteryCapacity" }
+Number Robot2BatteryVoltage "Robot 2 battery voltage [%.1f V]" { channel="http:url:robot2:batteryVoltage" }
 
 String Robot3Status "Robot 3 status [%s]" { channel="http:url:robot3:status" }
 Number Robot3Battery "Robot 3 battery [%d %%]" { channel="http:url:robot3:battery" }
 String Robot3CurrentTask "Robot 3 current task [%s]" { channel="http:url:robot3:currentTask" }
+Number Robot3BatteryCapacity "Robot 3 battery capacity [%.0f mAh]" { channel="http:url:robot3:batteryCapacity" }
+Number Robot3BatteryVoltage "Robot 3 battery voltage [%.1f V]" { channel="http:url:robot3:batteryVoltage" }
 
 String Robot1TaskCreate "Robot 1 create task"
 String Robot1TaskUpdate "Robot 1 update task"
