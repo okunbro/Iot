@@ -1,0 +1,50 @@
+sitemap smartgrid label="Smart Grid Analytics"
+{
+  Frame label="Grid overview" {
+    Text item=GridStatus icon="network"
+    Text item=GridAlert icon="error"
+
+    Text item=MeterTotalPower icon="energy"
+    Text item=MeterVoltage icon="poweroutlet"
+    Text item=MeterCurrent icon="line"
+    Text item=MeterPowerFactor icon="settings"
+
+    Text item=GridFrequency icon="time"
+    Text item=GridTHD icon="line"
+  }
+
+  Frame label="Demand-response and recovery" {
+    Switch item=Charger1Enabled
+    Switch item=Charger2Enabled
+    Switch item=Charger3Enabled
+
+    Text item=LoadSheddingLevel icon="settings"
+    Text item=RecoveryQueue icon="return"
+
+    Text item=MeterRobot1ChargePower icon="energy"
+    Text item=MeterRobot2ChargePower icon="energy"
+    Text item=MeterRobot3ChargePower icon="energy"
+  }
+
+  Frame label="Robot states" {
+    Text item=Robot1Status icon="robot"
+    Text item=Robot2Status icon="robot"
+    Text item=Robot3Status icon="robot"
+
+    Text item=Robot1Battery icon="battery"
+    Text item=Robot2Battery icon="battery"
+    Text item=Robot3Battery icon="battery"
+  }
+
+  Frame label="Energy and cost" {
+    Text item=MeterEnergy icon="energy"
+    Text item=MeterPeakPower icon="energy"
+    Text item=MeterPeakHours icon="clock"
+    Text item=MeterDemandCharge icon="price"
+    Text item=MeterCurrentTariff icon="price"
+    Text item=MeterCurrentCost icon="price"
+    Text item=MeterMonthlyEstimate icon="price"
+    Text item=MeterSavingsTip icon="info"
+  }
+
+}

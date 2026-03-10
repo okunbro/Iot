@@ -1,0 +1,268 @@
+var Number GRID_NOMINAL_FREQUENCY = 50.0
+
+var Number GRID_MAX_POWER = 2750.0
+var Number VOLTAGE_SAG_LIMIT = 220.0
+var Number VOLTAGE_SWELL_LIMIT = 240.0
+var Number FREQUENCY_LOW_LIMIT = 49.7
+var Number THD_LIMIT = 5.0
+
+var Number ROBOT1_REQUIRED_POWER = 1244.16
+var Number ROBOT2_REQUIRED_POWER = 1347.84
+var Number ROBOT3_REQUIRED_POWER = 1658.88
+
+var String prevRobot1Status = "unknown"
+var String prevRobot2Status = "unknown"
+var String prevRobot3Status = "unknown"
+
+var Number prevGridBatteryR1 = 82.0
+var Number prevGridBatteryR2 = 54.0
+var Number prevGridBatteryR3 = 19.0
+
+rule "Smart grid init"
+when
+    System started
+then
+    sendHttpPutRequest(
+        "http://localhost:3000/api/robots/r1/charger",
+        "application/json",
+        "{\"enabled\":true}",
+        3000
+    )
+    sendHttpPutRequest(
+        "http://localhost:3000/api/robots/r2/charger",
+        "application/json",
+        "{\"enabled\":true}",
+        3000
+    )
+    sendHttpPutRequest(
+        "http://localhost:3000/api/robots/r3/charger",
+        "application/json",
+        "{\"enabled\":true}",
+        3000
+    )
+
+    Charger1Enabled.postUpdate(ON)
+    Charger2Enabled.postUpdate(ON)
+    Charger3Enabled.postUpdate(ON)
+   
+    GridFrequency.postUpdate(GRID_NOMINAL_FREQUENCY)
+    GridTHD.postUpdate(0)
+
+    GridStatus.postUpdate("normal")
+    GridAlert.postUpdate("System initialized")
+    LoadSheddingLevel.postUpdate(0)
+    RecoveryQueue.postUpdate("-")
+
+    if(Robot1Status.state != NULL && Robot1Status.state != UNDEF) prevRobot1Status = Robot1Status.state.toString
+    if(Robot2Status.state != NULL && Robot2Status.state != UNDEF) prevRobot2Status = Robot2Status.state.toString
+    if(Robot3Status.state != NULL && Robot3Status.state != UNDEF) prevRobot3Status = Robot3Status.state.toString
+
+    if(Robot1Battery.state != NULL && Robot1Battery.state != UNDEF) prevGridBatteryR1 = Float::parseFloat(Robot1Battery.state.toString)
+    if(Robot2Battery.state != NULL && Robot2Battery.state != UNDEF) prevGridBatteryR2 = Float::parseFloat(Robot2Battery.state.toString)
+    if(Robot3Battery.state != NULL && Robot3Battery.state != UNDEF) prevGridBatteryR3 = Float::parseFloat(Robot3Battery.state.toString)
+end
+
+rule "Smart grid analytics and control"
+when
+    Time cron "0/1 * * * * ?"
+then
+    if(MeterRobot1ChargePower.state == NULL || MeterRobot1ChargePower.state == UNDEF) return;
+    if(MeterRobot2ChargePower.state == NULL || MeterRobot2ChargePower.state == UNDEF) return;
+    if(MeterRobot3ChargePower.state == NULL || MeterRobot3ChargePower.state == UNDEF) return;
+    if(MeterTotalPower.state == NULL || MeterTotalPower.state == UNDEF) return;
+    if(MeterVoltage.state == NULL || MeterVoltage.state == UNDEF) return;
+
+    if(Robot1Status.state == NULL || Robot1Status.state == UNDEF) return;
+    if(Robot2Status.state == NULL || Robot2Status.state == UNDEF) return;
+    if(Robot3Status.state == NULL || Robot3Status.state == UNDEF) return;
+
+    if(Robot1Battery.state == NULL || Robot1Battery.state == UNDEF) return;
+    if(Robot2Battery.state == NULL || Robot2Battery.state == UNDEF) return;
+    if(Robot3Battery.state == NULL || Robot3Battery.state == UNDEF) return;
+
+    if(RecoveryQueue.state == NULL || RecoveryQueue.state == UNDEF) return;
+
+    val Number p1 = Float::parseFloat(MeterRobot1ChargePower.state.toString)
+    val Number p2 = Float::parseFloat(MeterRobot2ChargePower.state.toString)
+    val Number p3 = Float::parseFloat(MeterRobot3ChargePower.state.toString)
+    val Number totalPower = Float::parseFloat(MeterTotalPower.state.toString)
+    val Number meterVoltage = Float::parseFloat(MeterVoltage.state.toString)
+
+    val String s1 = Robot1Status.state.toString
+    val String s2 = Robot2Status.state.toString
+    val String s3 = Robot3Status.state.toString
+
+    val Number b1 = Float::parseFloat(Robot1Battery.state.toString)
+    val Number b2 = Float::parseFloat(Robot2Battery.state.toString)
+    val Number b3 = Float::parseFloat(Robot3Battery.state.toString)    
+
+    var Number frequency = GRID_NOMINAL_FREQUENCY.doubleValue - (totalPower.doubleValue / 9000.0)
+    if(frequency.doubleValue < 49.0) frequency = 49.0
+
+    var Number thd = 1.5
+    if(p1.doubleValue > 0) thd = thd.doubleValue + 1.5
+    if(p2.doubleValue > 0) thd = thd.doubleValue + 1.5
+    if(p3.doubleValue > 0) thd = thd.doubleValue + 1.5
+
+    var String status = "normal"
+    var String alert = "Grid stable"
+
+    val Boolean overload = totalPower.doubleValue > GRID_MAX_POWER.doubleValue
+    val Boolean lowVoltage = meterVoltage.doubleValue < VOLTAGE_SAG_LIMIT.doubleValue
+    val Boolean lowFrequency = frequency.doubleValue < FREQUENCY_LOW_LIMIT.doubleValue
+    val Boolean highTHD = thd.doubleValue > THD_LIMIT.doubleValue
+
+    var String queue = RecoveryQueue.state.toString
+    if(queue == "-") queue = ""
+
+    if(overload || lowVoltage || lowFrequency || highTHD) {
+        status = "stressed"
+        alert = "Load shedding activated"
+
+        if(p1.doubleValue > 0 && Charger1Enabled.state == ON) {
+            sendHttpPutRequest(
+                "http://localhost:3000/api/robots/r1/charger",
+                "application/json",
+                "{\"enabled\":false}",
+                3000
+            )
+            Charger1Enabled.postUpdate(OFF)
+
+            if(!queue.contains("r1")) {
+                if(queue == "") queue = "r1" else queue = queue + ",r1"
+            }
+        } else if(p2.doubleValue > 0 && Charger2Enabled.state == ON) {
+            sendHttpPutRequest(
+                "http://localhost:3000/api/robots/r2/charger",
+                "application/json",
+                "{\"enabled\":false}",
+                3000
+            )
+            Charger2Enabled.postUpdate(OFF)
+
+            if(!queue.contains("r2")) {
+                if(queue == "") queue = "r2" else queue = queue + ",r2"
+            }
+        } else if(p3.doubleValue > 0 && Charger3Enabled.state == ON) {
+            sendHttpPutRequest(
+                "http://localhost:3000/api/robots/r3/charger",
+                "application/json",
+                "{\"enabled\":false}",
+                3000
+            )
+            Charger3Enabled.postUpdate(OFF)
+
+            if(!queue.contains("r3")) {
+                if(queue == "") queue = "r3" else queue = queue + ",r3"
+            }
+        }
+    }
+   
+    val Boolean robot1FinishedCharge = prevRobot1Status == "charging" && prevGridBatteryR1.doubleValue < 100.0 && b1.doubleValue >= 100.0
+    val Boolean robot2FinishedCharge = prevRobot2Status == "charging" && prevGridBatteryR2.doubleValue < 100.0 && b2.doubleValue >= 100.0
+    val Boolean robot3FinishedCharge = prevRobot3Status == "charging" && prevGridBatteryR3.doubleValue < 100.0 && b3.doubleValue >= 100.0
+
+    val Boolean chargeFinishedEvent = robot1FinishedCharge || robot2FinishedCharge || robot3FinishedCharge
+
+    val Boolean stableNow = totalPower.doubleValue <= GRID_MAX_POWER.doubleValue &&
+        meterVoltage.doubleValue >= VOLTAGE_SAG_LIMIT.doubleValue &&
+        frequency.doubleValue >= FREQUENCY_LOW_LIMIT.doubleValue &&
+        thd.doubleValue <= THD_LIMIT.doubleValue
+
+    if(chargeFinishedEvent && stableNow && queue != "") {
+        var Number availablePower = GRID_MAX_POWER.doubleValue - totalPower.doubleValue
+        var String newQueue = ""
+
+        val parts = queue.split(",")
+
+        for(robotId : parts) {
+            val id = robotId.trim
+            if(id == "") {        
+            } else if(id == "r1") {
+                if(Charger1Enabled.state != ON && s1 == "charging" && ROBOT1_REQUIRED_POWER.doubleValue <= availablePower.doubleValue) {
+                    sendHttpPutRequest(
+                        "http://localhost:3000/api/robots/r1/charger",
+                        "application/json",
+                        "{\"enabled\":true}",
+                        3000
+                    )
+                    Charger1Enabled.postUpdate(ON)
+                    availablePower = availablePower.doubleValue - ROBOT1_REQUIRED_POWER.doubleValue
+                    status = "recovery"
+                    alert = "Recovered charger 1"
+                } else {
+                    if(newQueue == "") newQueue = "r1" else newQueue = newQueue + ",r1"
+                }
+            } else if(id == "r2") {
+                if(Charger2Enabled.state != ON && s2 == "charging" && ROBOT2_REQUIRED_POWER.doubleValue <= availablePower.doubleValue) {
+                    sendHttpPutRequest(
+                        "http://localhost:3000/api/robots/r2/charger",
+                        "application/json",
+                        "{\"enabled\":true}",
+                        3000
+                    )
+                    Charger2Enabled.postUpdate(ON)
+                    availablePower = availablePower.doubleValue - ROBOT2_REQUIRED_POWER.doubleValue
+                    status = "recovery"
+                    alert = "Recovered charger 2"
+                } else {
+                    if(newQueue == "") newQueue = "r2" else newQueue = newQueue + ",r2"
+                }
+            } else if(id == "r3") {
+                if(Charger3Enabled.state != ON && s3 == "charging" && ROBOT3_REQUIRED_POWER.doubleValue <= availablePower.doubleValue) {
+                    sendHttpPutRequest(
+                        "http://localhost:3000/api/robots/r3/charger",
+                        "application/json",
+                        "{\"enabled\":true}",
+                        3000
+                    )
+                    Charger3Enabled.postUpdate(ON)
+                    availablePower = availablePower.doubleValue - ROBOT3_REQUIRED_POWER.doubleValue
+                    status = "recovery"
+                    alert = "Recovered charger 3"
+                } else {
+                    if(newQueue == "") newQueue = "r3" else newQueue = newQueue + ",r3"
+                }
+            }
+        }
+
+        queue = newQueue
+    }
+
+    GridFrequency.postUpdate(frequency)
+    GridTHD.postUpdate(thd)
+
+    if(meterVoltage.doubleValue > VOLTAGE_SWELL_LIMIT.doubleValue) {
+        status = "alert"
+        alert = "Voltage swell detected"
+    } else if(meterVoltage.doubleValue < VOLTAGE_SAG_LIMIT.doubleValue) {
+        status = "alert"
+        alert = "Voltage sag detected"
+    } else if(frequency.doubleValue < FREQUENCY_LOW_LIMIT.doubleValue) {
+        status = "alert"
+        alert = "Frequency deviation detected"
+    } else if(thd.doubleValue > THD_LIMIT.doubleValue) {
+        status = "alert"
+        alert = "Harmonic distortion detected"
+    }
+
+    var Number shedding = 0.0
+    if(Charger1Enabled.state == OFF) shedding = shedding.doubleValue + 1.0
+    if(Charger2Enabled.state == OFF) shedding = shedding.doubleValue + 1.0
+    if(Charger3Enabled.state == OFF) shedding = shedding.doubleValue + 1.0
+
+    if(queue == "") queue = "-"
+
+    GridStatus.postUpdate(status)
+    GridAlert.postUpdate(alert)
+    LoadSheddingLevel.postUpdate(shedding)
+    RecoveryQueue.postUpdate(queue)
+
+    prevRobot1Status = s1
+    prevRobot2Status = s2
+    prevRobot3Status = s3
+
+    prevGridBatteryR1 = b1
+    prevGridBatteryR2 = b2
+    prevGridBatteryR3 = b3
+end

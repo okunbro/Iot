@@ -20,6 +20,7 @@ const robots = {
     name: 'RoboVac Alpha',
     status: 'cleaning',
     battery: 82,
+    chargerEnabled: true,
     batteryCapacitymAh: 2400,
     batteryNominalVoltage: BATTERY_NOMINAL_VOLTAGE,
     tasks: [
@@ -32,6 +33,7 @@ const robots = {
     name: 'RoboVac Beta',
     status: 'cleaning',
     battery: 54,
+    chargerEnabled: true,
     batteryCapacitymAh: 2600,
     batteryNominalVoltage: BATTERY_NOMINAL_VOLTAGE,
     tasks: [
@@ -43,6 +45,7 @@ const robots = {
     name: 'RoboVac Gamma',
     status: 'charging',
     battery: 19,
+    chargerEnabled: true,
     batteryCapacitymAh: 3200,
     batteryNominalVoltage: BATTERY_NOMINAL_VOLTAGE,
     tasks: [
@@ -100,6 +103,7 @@ function buildRobotStatusPayload(robot) {
     name: robot.name,
     status: robot.status,
     battery: robot.battery,
+    chargerEnabled: robot.chargerEnabled,
     batteryCapacitymAh: robot.batteryCapacitymAh,
     batteryNominalVoltage: robot.batteryNominalVoltage,
     batteryCapacityWh: getBatteryCapacityWh(robot),
@@ -181,7 +185,7 @@ function tickRobot(robot) {
   }
 
   if (robot.status === 'charging') {
-    if (robot.battery < 100) {
+    if (robot.chargerEnabled && robot.battery < 100) {
       robot.battery = Math.min(100, robot.battery + 1);
     }
 
@@ -503,6 +507,7 @@ app.get('/api/robots', (req, res) => {
     name: robot.name,
     status: robot.status,
     battery: robot.battery,
+    chargerEnabled: robot.chargerEnabled,
     batteryCapacitymAh: robot.batteryCapacitymAh,
     batteryNominalVoltage: robot.batteryNominalVoltage,
     batteryCapacityWh: getBatteryCapacityWh(robot),
@@ -520,6 +525,27 @@ app.get('/api/robots/:id/status', async (req, res) => {
   } catch (e) {
     res.status(504).json({ error: 'Gateway timeout', details: e.message });
   }
+});
+
+app.put('/api/robots/:id/charger', (req, res) => {
+  const robot = robots[req.params.id];
+
+  if (!robot) {
+    return res.status(404).json({ error: 'Robot not found' });
+  }
+
+  if (typeof req.body.enabled !== 'boolean') {
+    return res.status(400).json({ error: 'Field enabled must be boolean' });
+  }
+
+  robot.chargerEnabled = req.body.enabled;
+  notifyStatus(robot.id);
+
+  res.json({
+    message: 'Charger state updated',
+    id: robot.id,
+    chargerEnabled: robot.chargerEnabled
+  });
 });
 
 app.get('/api/robots/:id/tasks', async (req, res) => {

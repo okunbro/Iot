@@ -39,7 +39,7 @@ end
 
 rule "Virtual smart meter analytics"
 when
-    Time cron "0/2 * * * * ?"
+    Time cron "0/1 * * * * ?"
 then
     if(Robot1Battery.state == NULL || Robot1Battery.state == UNDEF) return;
     if(Robot2Battery.state == NULL || Robot2Battery.state == UNDEF) return;
@@ -52,6 +52,10 @@ then
     if(Robot1BatteryVoltage.state == NULL || Robot1BatteryVoltage.state == UNDEF) return;
     if(Robot2BatteryVoltage.state == NULL || Robot2BatteryVoltage.state == UNDEF) return;
     if(Robot3BatteryVoltage.state == NULL || Robot3BatteryVoltage.state == UNDEF) return;
+
+    if(Charger1Enabled.state == NULL || Charger1Enabled.state == UNDEF) return;
+    if(Charger2Enabled.state == NULL || Charger2Enabled.state == UNDEF) return;
+    if(Charger3Enabled.state == NULL || Charger3Enabled.state == UNDEF) return;
 
     val Number b1 = Float::parseFloat(Robot1Battery.state.toString)
     val Number b2 = Float::parseFloat(Robot2Battery.state.toString)
@@ -69,23 +73,27 @@ then
     val Number v2 = Float::parseFloat(Robot2BatteryVoltage.state.toString)
     val Number v3 = Float::parseFloat(Robot3BatteryVoltage.state.toString)
 
-    val Number intervalSeconds = 2.0
+    val Boolean ch1Enabled = Charger1Enabled.state == ON
+    val Boolean ch2Enabled = Charger2Enabled.state == ON
+    val Boolean ch3Enabled = Charger3Enabled.state == ON
+
+    val Number intervalSeconds = 1.0
 
     var Number chargedWhR1 = 0.0
     var Number chargedWhR2 = 0.0
     var Number chargedWhR3 = 0.0
 
-    if(s1 == "charging" && b1 > prevBatteryR1) {
+    if(s1 == "charging" && ch1Enabled && b1 > prevBatteryR1) {
         val Number delta = b1 - prevBatteryR1
         chargedWhR1 = ((c1.doubleValue * v1.doubleValue) / 1000.0) * (delta.doubleValue / 100.0)
     }
 
-    if(s2 == "charging" && b2 > prevBatteryR2) {
+    if(s2 == "charging" && ch2Enabled && b2 > prevBatteryR2) {
         val Number delta = b2 - prevBatteryR2
         chargedWhR2 = ((c2.doubleValue * v2.doubleValue) / 1000.0) * (delta.doubleValue / 100.0)
     }
 
-    if(s3 == "charging" && b3 > prevBatteryR3) {
+    if(s3 == "charging" && ch3Enabled && b3 > prevBatteryR3) {
         val Number delta = b3 - prevBatteryR3
         chargedWhR3 = ((c3.doubleValue * v3.doubleValue) / 1000.0) * (delta.doubleValue / 100.0)
     }
@@ -133,6 +141,10 @@ then
 
     if(s1 == "idle" && s2 == "idle" && s3 == "idle") {
         savingsTip = "All robots are fully charged and idle"
+    }
+
+    if(!ch1Enabled || !ch2Enabled || !ch3Enabled) {
+        savingsTip = "Some chargers are disabled by grid control"
     }
 
     MeterRobot1ChargePower.postUpdate(powerR1)
