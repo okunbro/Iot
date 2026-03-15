@@ -1,0 +1,80 @@
+sitemap predictivecontrol label="Predictive Control System"
+{
+    Frame label="Загальний стан системи" icon="house" {
+        Text item=GridStatus label="Стан мережі [%s]" icon="qualityofservice"
+        Text item=GridAlert label="Подія / попередження [%s]" icon="warning"
+
+        Text item=PredictiveSystemStatus label="Стан predictive-системи [%s]" icon="shield"
+        Text item=PredictiveModelStatus label="Стан моделі [%s]" icon="settings"
+        Text item=PredictiveDecision label="Поточне рішення [%s]" icon="switch"
+        Text item=PredictiveReason label="Причина рішення [%s]" icon="info"
+    }
+
+    Frame label="Параметри мережі" icon="energy" {
+        Text item=MeterTotalPower label="Поточне навантаження [%.1f W]" icon="energy"
+        Text item=MeterVoltage label="Напруга [%.0f V]" icon="energy"
+        Text item=MeterCurrent label="Струм [%.2f A]" icon="energy"
+        Text item=GridFrequency label="Частота [%.2f Hz]" icon="time"
+        Text item=GridTHD label="THD [%.1f %%]" icon="line"
+
+        Text item=LoadSheddingLevel label="Кількість відключених зарядок [%.0f]" icon="switch"
+        Text item=RecoveryQueue label="Черга на відновлення [%s]" icon="text"
+    }
+
+    Frame label="Прогнозне керування" icon="line" {
+        Text item=PredictiveLookAheadSeconds label="Вікно прогнозу [%.0f s]" icon="time"
+        Text item=PredictiveAdaptiveSafetyMargin label="Адаптивний запас безпеки [%.1f W]" icon="shield"
+        Text item=PredictiveRiskScore label="Рівень ризику [%.0f %%]" icon="warning"
+
+        Text item=PredictiveSmoothedPower label="Згладжене навантаження [%.1f W]" icon="energy"
+        Text item=PredictivePowerTrend label="Тренд навантаження [%.1f W]" icon="line"
+        Text item=PredictivePredictedPower label="Прогнозоване навантаження [%.1f W]" icon="energy"
+        Text item=PredictiveAvailablePower label="Доступна потужність [%.1f W]" icon="energy"
+        Text item=PredictivePowerMargin label="Безпечний запас потужності [%.1f W]" icon="shield"
+    }
+
+    Frame label="Пріоритети роботів" icon="settings" {
+        Text item=PredictivePriorityQueue label="Порядок пріоритету [%s]" icon="text"
+
+        Text item=PredictiveRobot1Priority label="Робот 1: пріоритет [%.0f]" icon="battery"
+        Text item=PredictiveRobot2Priority label="Робот 2: пріоритет [%.0f]" icon="battery"
+        Text item=PredictiveRobot3Priority label="Робот 3: пріоритет [%.0f]" icon="battery"
+    }
+
+    Frame label="Робот 1" icon="battery" {
+        Text item=Robot1Status label="Статус робота [%s]" icon="text"
+        Text item=Robot1Battery label="Заряд батареї [%d %%]" icon="battery"
+        Text item=Charger1Enabled label="Статус зарядки [%s]" icon="switch"
+        Text item=MeterRobot1ChargePower label="Потужність заряджання [%.1f W]" icon="energy"
+        Text item=Robot1CurrentTask label="Поточне завдання [%s]" icon="text"
+        Text item=PredictiveRobot1Recommendation label="Рекомендація системи [%s]" icon="info"
+    }
+
+    Frame label="Робот 2" icon="battery" {
+        Text item=Robot2Status label="Статус робота [%s]" icon="text"
+        Text item=Robot2Battery label="Заряд батареї [%d %%]" icon="battery"
+        Text item=Charger2Enabled label="Статус зарядки [%s]" icon="switch"
+        Text item=MeterRobot2ChargePower label="Потужність заряджання [%.1f W]" icon="energy"
+        Text item=Robot2CurrentTask label="Поточне завдання [%s]" icon="text"
+        Text item=PredictiveRobot2Recommendation label="Рекомендація системи [%s]" icon="info"
+    }
+
+    Frame label="Робот 3" icon="battery" {
+        Text item=Robot3Status label="Статус робота [%s]" icon="text"
+        Text item=Robot3Battery label="Заряд батареї [%d %%]" icon="battery"
+        Text item=Charger3Enabled label="Статус зарядки [%s]" icon="switch"
+        Text item=MeterRobot3ChargePower label="Потужність заряджання [%.1f W]" icon="energy"
+        Text item=Robot3CurrentTask label="Поточне завдання [%s]" icon="text"
+        Text item=PredictiveRobot3Recommendation label="Рекомендація системи [%s]" icon="info"
+    }
+
+    Frame label="Ефективність системи" icon="settings" {
+        Text item=PredictivePreventiveActions label="Превентивні дії [%.0f]" icon="shield"
+        Text item=PredictiveRecoveryActions label="Успішні відновлення [%.0f]" icon="switch"
+        Text item=PredictiveOverloadEvents label="Stress events [%.0f]" icon="warning"
+
+        Text item=MeterPeakPower label="Пікове навантаження [%.1f W]" icon="energy"
+        Text item=MeterCurrentCost label="Поточна вартість [%.4f €]" icon="text"
+        Text item=MeterMonthlyEstimate label="Місячний прогноз вартості [%.2f €]" icon="text"
+    }
+}

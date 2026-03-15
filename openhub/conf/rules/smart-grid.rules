@@ -18,6 +18,19 @@ var Number prevGridBatteryR1 = 82.0
 var Number prevGridBatteryR2 = 54.0
 var Number prevGridBatteryR3 = 19.0
 
+var Number BASE_SAFETY_MARGIN = 120.0
+var Number MIN_SAFETY_MARGIN = 80.0
+var Number MAX_SAFETY_MARGIN = 700.0
+var Number LOOK_AHEAD_SECONDS = 5.0
+
+var Number adaptiveSafetyMarginValue = 250.0
+var Number prevSmoothedPowerValue = 0.0
+var Number predictivePreventiveActionsValue = 0.0
+var Number predictiveRecoveryActionsValue = 0.0
+var Number predictiveOverloadEventsValue = 0.0
+
+var Boolean prevActualStressState = false
+
 rule "Smart grid init"
 when
     System started
@@ -44,7 +57,7 @@ then
     Charger1Enabled.postUpdate(ON)
     Charger2Enabled.postUpdate(ON)
     Charger3Enabled.postUpdate(ON)
-   
+
     GridFrequency.postUpdate(GRID_NOMINAL_FREQUENCY)
     GridTHD.postUpdate(0)
 
@@ -60,9 +73,61 @@ then
     if(Robot1Battery.state != NULL && Robot1Battery.state != UNDEF) prevGridBatteryR1 = Float::parseFloat(Robot1Battery.state.toString)
     if(Robot2Battery.state != NULL && Robot2Battery.state != UNDEF) prevGridBatteryR2 = Float::parseFloat(Robot2Battery.state.toString)
     if(Robot3Battery.state != NULL && Robot3Battery.state != UNDEF) prevGridBatteryR3 = Float::parseFloat(Robot3Battery.state.toString)
+
+    if(PredictiveAdaptiveSafetyMargin.state != NULL && PredictiveAdaptiveSafetyMargin.state != UNDEF) {
+        adaptiveSafetyMarginValue = Float::parseFloat(PredictiveAdaptiveSafetyMargin.state.toString)
+    } else {
+        adaptiveSafetyMarginValue = BASE_SAFETY_MARGIN
+    }
+
+    if(PredictiveLookAheadSeconds.state != NULL && PredictiveLookAheadSeconds.state != UNDEF) {
+        LOOK_AHEAD_SECONDS = Float::parseFloat(PredictiveLookAheadSeconds.state.toString)
+    }
+
+    if(PredictivePreventiveActions.state != NULL && PredictivePreventiveActions.state != UNDEF) {
+        predictivePreventiveActionsValue = Float::parseFloat(PredictivePreventiveActions.state.toString)
+    }
+
+    if(PredictiveRecoveryActions.state != NULL && PredictiveRecoveryActions.state != UNDEF) {
+        predictiveRecoveryActionsValue = Float::parseFloat(PredictiveRecoveryActions.state.toString)
+    }
+
+    if(PredictiveOverloadEvents.state != NULL && PredictiveOverloadEvents.state != UNDEF) {
+        predictiveOverloadEventsValue = Float::parseFloat(PredictiveOverloadEvents.state.toString)
+    }
+
+    PredictiveSystemStatus.postUpdate("active")
+    PredictiveDecision.postUpdate("monitor")
+    PredictiveReason.postUpdate("Waiting for first measurement")
+    PredictiveModelStatus.postUpdate("simple forecast active")
+
+    PredictiveSmoothedPower.postUpdate(0)
+    PredictivePowerTrend.postUpdate(0)
+    PredictivePredictedPower.postUpdate(0)
+    PredictiveAvailablePower.postUpdate(GRID_MAX_POWER)
+    PredictivePowerMargin.postUpdate(GRID_MAX_POWER - adaptiveSafetyMarginValue)
+    PredictiveAdaptiveSafetyMargin.postUpdate(adaptiveSafetyMarginValue)
+    PredictiveRiskScore.postUpdate(0)
+    PredictiveLookAheadSeconds.postUpdate(LOOK_AHEAD_SECONDS)
+
+    PredictiveRobot1Priority.postUpdate(0)
+    PredictiveRobot2Priority.postUpdate(0)
+    PredictiveRobot3Priority.postUpdate(0)
+
+    PredictiveRobot1Recommendation.postUpdate("waiting")
+    PredictiveRobot2Recommendation.postUpdate("waiting")
+    PredictiveRobot3Recommendation.postUpdate("waiting")
+    PredictivePriorityQueue.postUpdate("r1 > r2 > r3")
+
+    PredictivePreventiveActions.postUpdate(predictivePreventiveActionsValue)
+    PredictiveRecoveryActions.postUpdate(predictiveRecoveryActionsValue)
+    PredictiveOverloadEvents.postUpdate(predictiveOverloadEventsValue)
+
+    prevSmoothedPowerValue = 0.0
+    prevActualStressState = false
 end
 
-rule "Smart grid analytics and control"
+rule "Smart grid analytics and predictive control"
 when
     Time cron "0/1 * * * * ?"
 then
@@ -94,7 +159,7 @@ then
 
     val Number b1 = Float::parseFloat(Robot1Battery.state.toString)
     val Number b2 = Float::parseFloat(Robot2Battery.state.toString)
-    val Number b3 = Float::parseFloat(Robot3Battery.state.toString)    
+    val Number b3 = Float::parseFloat(Robot3Battery.state.toString)
 
     var Number frequency = GRID_NOMINAL_FREQUENCY.doubleValue - (totalPower.doubleValue / 9000.0)
     if(frequency.doubleValue < 49.0) frequency = 49.0
@@ -104,82 +169,265 @@ then
     if(p2.doubleValue > 0) thd = thd.doubleValue + 1.5
     if(p3.doubleValue > 0) thd = thd.doubleValue + 1.5
 
-    var String status = "normal"
-    var String alert = "Grid stable"
+    val Number smoothedPower = if(prevSmoothedPowerValue.doubleValue == 0.0)
+        totalPower.doubleValue
+    else
+        (prevSmoothedPowerValue.doubleValue * 0.75) + (totalPower.doubleValue * 0.25)
 
-    val Boolean overload = totalPower.doubleValue > GRID_MAX_POWER.doubleValue
-    val Boolean lowVoltage = meterVoltage.doubleValue < VOLTAGE_SAG_LIMIT.doubleValue
-    val Boolean lowFrequency = frequency.doubleValue < FREQUENCY_LOW_LIMIT.doubleValue
-    val Boolean highTHD = thd.doubleValue > THD_LIMIT.doubleValue
+    var Number delta = 0.0
+    if(prevSmoothedPowerValue.doubleValue > 0.0) {
+        delta = smoothedPower.doubleValue - prevSmoothedPowerValue.doubleValue
+    }
+
+    if(delta.doubleValue > 120.0) delta = 120.0
+    if(delta.doubleValue < -120.0) delta = -120.0
+
+    var Number forecastWeight = 0.6
+    if(LOOK_AHEAD_SECONDS.doubleValue <= 2.0) {
+        forecastWeight = 0.4
+    } else if(LOOK_AHEAD_SECONDS.doubleValue >= 7.0) {
+        forecastWeight = 0.8
+    }
+
+    var Number predictedPower = smoothedPower.doubleValue + (delta.doubleValue * forecastWeight.doubleValue)
+
+    var Number physicalCeiling = 0.0
+    if(s1 == "charging" && Charger1Enabled.state == ON) physicalCeiling = physicalCeiling.doubleValue + ROBOT1_REQUIRED_POWER.doubleValue
+    if(s2 == "charging" && Charger2Enabled.state == ON) physicalCeiling = physicalCeiling.doubleValue + ROBOT2_REQUIRED_POWER.doubleValue
+    if(s3 == "charging" && Charger3Enabled.state == ON) physicalCeiling = physicalCeiling.doubleValue + ROBOT3_REQUIRED_POWER.doubleValue
+
+    if(physicalCeiling.doubleValue < smoothedPower.doubleValue) physicalCeiling = smoothedPower.doubleValue
+    if(predictedPower.doubleValue > physicalCeiling.doubleValue + 50.0) predictedPower = physicalCeiling.doubleValue + 50.0
+    if(predictedPower.doubleValue < 0.0) predictedPower = 0.0
+
+    val Number availablePower = GRID_MAX_POWER.doubleValue - totalPower.doubleValue
+    val Number rawPowerMargin = GRID_MAX_POWER.doubleValue - predictedPower.doubleValue - adaptiveSafetyMarginValue.doubleValue
+
+    var Number riskScore = (predictedPower.doubleValue / GRID_MAX_POWER.doubleValue) * 70.0
+    if(meterVoltage.doubleValue < VOLTAGE_SAG_LIMIT.doubleValue + 3.0) riskScore = riskScore.doubleValue + 10.0
+    if(frequency.doubleValue < FREQUENCY_LOW_LIMIT.doubleValue + 0.1) riskScore = riskScore.doubleValue + 10.0
+    if(thd.doubleValue > THD_LIMIT.doubleValue - 0.5) riskScore = riskScore.doubleValue + 10.0
+
+    if(riskScore.doubleValue < 0.0) riskScore = 0.0
+    if(riskScore.doubleValue > 100.0) riskScore = 100.0
 
     var String queue = RecoveryQueue.state.toString
     if(queue == "-") queue = ""
 
-    if(overload || lowVoltage || lowFrequency || highTHD) {
-        status = "stressed"
-        alert = "Load shedding activated"
+    var Number pr1 = 100.0 - b1.doubleValue
+    var Number pr2 = 100.0 - b2.doubleValue
+    var Number pr3 = 100.0 - b3.doubleValue
 
-        if(p1.doubleValue > 0 && Charger1Enabled.state == ON) {
-            sendHttpPutRequest(
-                "http://localhost:3000/api/robots/r1/charger",
-                "application/json",
-                "{\"enabled\":false}",
-                3000
-            )
-            Charger1Enabled.postUpdate(OFF)
+    if(b1.doubleValue <= 20.0) pr1 = pr1.doubleValue + 15.0
+    if(b2.doubleValue <= 20.0) pr2 = pr2.doubleValue + 15.0
+    if(b3.doubleValue <= 20.0) pr3 = pr3.doubleValue + 15.0
 
-            if(!queue.contains("r1")) {
-                if(queue == "") queue = "r1" else queue = queue + ",r1"
-            }
-        } else if(p2.doubleValue > 0 && Charger2Enabled.state == ON) {
-            sendHttpPutRequest(
-                "http://localhost:3000/api/robots/r2/charger",
-                "application/json",
-                "{\"enabled\":false}",
-                3000
-            )
-            Charger2Enabled.postUpdate(OFF)
+    if(s1 == "charging" && Charger1Enabled.state == OFF) pr1 = pr1.doubleValue + 20.0
+    if(s2 == "charging" && Charger2Enabled.state == OFF) pr2 = pr2.doubleValue + 20.0
+    if(s3 == "charging" && Charger3Enabled.state == OFF) pr3 = pr3.doubleValue + 20.0
 
-            if(!queue.contains("r2")) {
-                if(queue == "") queue = "r2" else queue = queue + ",r2"
-            }
-        } else if(p3.doubleValue > 0 && Charger3Enabled.state == ON) {
-            sendHttpPutRequest(
-                "http://localhost:3000/api/robots/r3/charger",
-                "application/json",
-                "{\"enabled\":false}",
-                3000
-            )
-            Charger3Enabled.postUpdate(OFF)
+    if(queue.contains("r1")) pr1 = pr1.doubleValue + 10.0
+    if(queue.contains("r2")) pr2 = pr2.doubleValue + 10.0
+    if(queue.contains("r3")) pr3 = pr3.doubleValue + 10.0
 
-            if(!queue.contains("r3")) {
-                if(queue == "") queue = "r3" else queue = queue + ",r3"
-            }
-        }
+    var String priorityOrder = ""
+    if(pr1.doubleValue >= pr2.doubleValue && pr1.doubleValue >= pr3.doubleValue) {
+        if(pr2.doubleValue >= pr3.doubleValue) priorityOrder = "r1 > r2 > r3" else priorityOrder = "r1 > r3 > r2"
+    } else if(pr2.doubleValue >= pr1.doubleValue && pr2.doubleValue >= pr3.doubleValue) {
+        if(pr1.doubleValue >= pr3.doubleValue) priorityOrder = "r2 > r1 > r3" else priorityOrder = "r2 > r3 > r1"
+    } else {
+        if(pr1.doubleValue >= pr2.doubleValue) priorityOrder = "r3 > r1 > r2" else priorityOrder = "r3 > r2 > r1"
     }
-   
-    val Boolean robot1FinishedCharge = prevRobot1Status == "charging" && prevGridBatteryR1.doubleValue < 100.0 && b1.doubleValue >= 100.0
-    val Boolean robot2FinishedCharge = prevRobot2Status == "charging" && prevGridBatteryR2.doubleValue < 100.0 && b2.doubleValue >= 100.0
-    val Boolean robot3FinishedCharge = prevRobot3Status == "charging" && prevGridBatteryR3.doubleValue < 100.0 && b3.doubleValue >= 100.0
 
-    val Boolean chargeFinishedEvent = robot1FinishedCharge || robot2FinishedCharge || robot3FinishedCharge
+    val Boolean overload = totalPower.doubleValue > GRID_MAX_POWER.doubleValue
+    val Boolean lowVoltage = meterVoltage.doubleValue < VOLTAGE_SAG_LIMIT.doubleValue
+    val Boolean highVoltage = meterVoltage.doubleValue > VOLTAGE_SWELL_LIMIT.doubleValue
+    val Boolean lowFrequency = frequency.doubleValue < FREQUENCY_LOW_LIMIT.doubleValue
+    val Boolean highTHD = thd.doubleValue > THD_LIMIT.doubleValue
 
-    val Boolean stableNow = totalPower.doubleValue <= GRID_MAX_POWER.doubleValue &&
-        meterVoltage.doubleValue >= VOLTAGE_SAG_LIMIT.doubleValue &&
-        frequency.doubleValue >= FREQUENCY_LOW_LIMIT.doubleValue &&
-        thd.doubleValue <= THD_LIMIT.doubleValue
+    val Boolean actualStress = overload || lowVoltage || highVoltage || lowFrequency || highTHD
 
-    if(chargeFinishedEvent && stableNow && queue != "") {
-        var Number availablePower = GRID_MAX_POWER.doubleValue - totalPower.doubleValue
-        var String newQueue = ""
+    val Boolean predictiveOverload = predictedPower.doubleValue > (GRID_MAX_POWER.doubleValue - adaptiveSafetyMarginValue.doubleValue)
+    val Boolean predictiveVoltageRisk = meterVoltage.doubleValue < (VOLTAGE_SAG_LIMIT.doubleValue + 2.0)
+    val Boolean predictiveFrequencyRisk = frequency.doubleValue < (FREQUENCY_LOW_LIMIT.doubleValue + 0.01)
+    val Boolean predictiveTHDRisk = thd.doubleValue > (THD_LIMIT.doubleValue - 0.3)
 
-        val parts = queue.split(",")
+    var String status = "normal"
+    var String alert = "Grid stable"
+    var String decision = "monitor"
+    var String reason = "No action required"
+    var String modelStatus = "simple forecast active"
 
-        for(robotId : parts) {
-            val id = robotId.trim
-            if(id == "") {        
-            } else if(id == "r1") {
-                if(Charger1Enabled.state != ON && s1 == "charging" && ROBOT1_REQUIRED_POWER.doubleValue <= availablePower.doubleValue) {
+    if(actualStress && !prevActualStressState) {
+        predictiveOverloadEventsValue = predictiveOverloadEventsValue.doubleValue + 1.0
+        adaptiveSafetyMarginValue = adaptiveSafetyMarginValue.doubleValue + 50.0
+        if(adaptiveSafetyMarginValue.doubleValue > MAX_SAFETY_MARGIN.doubleValue) adaptiveSafetyMarginValue = MAX_SAFETY_MARGIN
+        modelStatus = "safety margin increased after stress event"
+    } else if(!actualStress && adaptiveSafetyMarginValue.doubleValue > MIN_SAFETY_MARGIN.doubleValue && totalPower.doubleValue < GRID_MAX_POWER.doubleValue * 0.55 && queue == "") {
+        adaptiveSafetyMarginValue = adaptiveSafetyMarginValue.doubleValue - 5.0
+        if(adaptiveSafetyMarginValue.doubleValue < MIN_SAFETY_MARGIN.doubleValue) adaptiveSafetyMarginValue = MIN_SAFETY_MARGIN
+        modelStatus = "safety margin relaxed"
+    }
+
+    var String shedCandidate = ""
+    var Number shedCandidateBattery = -1.0
+
+    if(p1.doubleValue > 0 && Charger1Enabled.state == ON && s1 == "charging") {
+        shedCandidate = "r1"
+        shedCandidateBattery = b1
+    }
+
+    if(p2.doubleValue > 0 && Charger2Enabled.state == ON && s2 == "charging" && b2.doubleValue > shedCandidateBattery.doubleValue) {
+        shedCandidate = "r2"
+        shedCandidateBattery = b2
+    }
+
+    if(p3.doubleValue > 0 && Charger3Enabled.state == ON && s3 == "charging" && b3.doubleValue > shedCandidateBattery.doubleValue) {
+        shedCandidate = "r3"
+        shedCandidateBattery = b3
+    }
+
+    if(actualStress) {
+        status = "alert"
+
+        if(overload) {
+            alert = "Actual overload detected"
+            reason = "Total power exceeded grid limit"
+        } else if(lowVoltage) {
+            alert = "Voltage sag detected"
+            reason = "Measured voltage is below allowed limit"
+        } else if(highVoltage) {
+            alert = "Voltage swell detected"
+            reason = "Measured voltage is above allowed limit"
+        } else if(lowFrequency) {
+            alert = "Frequency deviation detected"
+            reason = "Grid frequency is below safe threshold"
+        } else if(highTHD) {
+            alert = "Harmonic distortion detected"
+            reason = "THD exceeded safe threshold"
+        }
+
+        if(shedCandidate != "") {
+            if(shedCandidate == "r1") {
+                sendHttpPutRequest(
+                    "http://localhost:3000/api/robots/r1/charger",
+                    "application/json",
+                    "{\"enabled\":false}",
+                    3000
+                )
+                Charger1Enabled.postUpdate(OFF)
+                if(!queue.contains("r1")) {
+                    if(queue == "") queue = "r1" else queue = queue + ",r1"
+                }
+            } else if(shedCandidate == "r2") {
+                sendHttpPutRequest(
+                    "http://localhost:3000/api/robots/r2/charger",
+                    "application/json",
+                    "{\"enabled\":false}",
+                    3000
+                )
+                Charger2Enabled.postUpdate(OFF)
+                if(!queue.contains("r2")) {
+                    if(queue == "") queue = "r2" else queue = queue + ",r2"
+                }
+            } else if(shedCandidate == "r3") {
+                sendHttpPutRequest(
+                    "http://localhost:3000/api/robots/r3/charger",
+                    "application/json",
+                    "{\"enabled\":false}",
+                    3000
+                )
+                Charger3Enabled.postUpdate(OFF)
+                if(!queue.contains("r3")) {
+                    if(queue == "") queue = "r3" else queue = queue + ",r3"
+                }
+            }
+
+            decision = "reactive_shed_" + shedCandidate
+            reason = reason + ", charger " + shedCandidate + " disabled"
+        } else {
+            decision = "alarm_only"
+            reason = reason + ", no active charger available to disable"
+        }
+    } else if(predictiveOverload || predictiveVoltageRisk || predictiveFrequencyRisk || predictiveTHDRisk) {
+        status = "predictive"
+        alert = "Predictive risk detected"
+        reason = "Forecast shows unsafe charging window"
+
+        if(shedCandidate != "") {
+            if(shedCandidate == "r1") {
+                sendHttpPutRequest(
+                    "http://localhost:3000/api/robots/r1/charger",
+                    "application/json",
+                    "{\"enabled\":false}",
+                    3000
+                )
+                Charger1Enabled.postUpdate(OFF)
+                if(!queue.contains("r1")) {
+                    if(queue == "") queue = "r1" else queue = queue + ",r1"
+                }
+            } else if(shedCandidate == "r2") {
+                sendHttpPutRequest(
+                    "http://localhost:3000/api/robots/r2/charger",
+                    "application/json",
+                    "{\"enabled\":false}",
+                    3000
+                )
+                Charger2Enabled.postUpdate(OFF)
+                if(!queue.contains("r2")) {
+                    if(queue == "") queue = "r2" else queue = queue + ",r2"
+                }
+            } else if(shedCandidate == "r3") {
+                sendHttpPutRequest(
+                    "http://localhost:3000/api/robots/r3/charger",
+                    "application/json",
+                    "{\"enabled\":false}",
+                    3000
+                )
+                Charger3Enabled.postUpdate(OFF)
+                if(!queue.contains("r3")) {
+                    if(queue == "") queue = "r3" else queue = queue + ",r3"
+                }
+            }
+
+            predictivePreventiveActionsValue = predictivePreventiveActionsValue.doubleValue + 1.0
+            decision = "predictive_shed_" + shedCandidate
+            reason = "Predicted safe margin is too small, charger " + shedCandidate + " postponed"
+        } else {
+            decision = "hold"
+            reason = "Predictive risk detected, but no active charger is available for shedding"
+        }
+    } else {
+        val Boolean stableForRecovery = !actualStress &&
+            !predictiveOverload &&
+            !predictiveVoltageRisk &&
+            !predictiveFrequencyRisk &&
+            !predictiveTHDRisk
+
+        if(stableForRecovery && queue != "") {
+            var Number safeBudget = GRID_MAX_POWER.doubleValue - predictedPower.doubleValue - (adaptiveSafetyMarginValue.doubleValue * 0.5)
+            if(safeBudget.doubleValue < 0.0) safeBudget = 0.0
+
+            var String selectedRobot = ""
+            var Number selectedPriority = -1.0
+
+            if(queue.contains("r1") && Charger1Enabled.state != ON && s1 == "charging" && ROBOT1_REQUIRED_POWER.doubleValue <= safeBudget.doubleValue && pr1.doubleValue > selectedPriority.doubleValue) {
+                selectedRobot = "r1"
+                selectedPriority = pr1
+            }
+
+            if(queue.contains("r2") && Charger2Enabled.state != ON && s2 == "charging" && ROBOT2_REQUIRED_POWER.doubleValue <= safeBudget.doubleValue && pr2.doubleValue > selectedPriority.doubleValue) {
+                selectedRobot = "r2"
+                selectedPriority = pr2
+            }
+
+            if(queue.contains("r3") && Charger3Enabled.state != ON && s3 == "charging" && ROBOT3_REQUIRED_POWER.doubleValue <= safeBudget.doubleValue && pr3.doubleValue > selectedPriority.doubleValue) {
+                selectedRobot = "r3"
+                selectedPriority = pr3
+            }
+
+            if(selectedRobot != "") {
+                if(selectedRobot == "r1") {
                     sendHttpPutRequest(
                         "http://localhost:3000/api/robots/r1/charger",
                         "application/json",
@@ -187,14 +435,10 @@ then
                         3000
                     )
                     Charger1Enabled.postUpdate(ON)
-                    availablePower = availablePower.doubleValue - ROBOT1_REQUIRED_POWER.doubleValue
-                    status = "recovery"
-                    alert = "Recovered charger 1"
-                } else {
-                    if(newQueue == "") newQueue = "r1" else newQueue = newQueue + ",r1"
-                }
-            } else if(id == "r2") {
-                if(Charger2Enabled.state != ON && s2 == "charging" && ROBOT2_REQUIRED_POWER.doubleValue <= availablePower.doubleValue) {
+                    queue = queue.replace("r1,", "")
+                    queue = queue.replace(",r1", "")
+                    if(queue == "r1") queue = ""
+                } else if(selectedRobot == "r2") {
                     sendHttpPutRequest(
                         "http://localhost:3000/api/robots/r2/charger",
                         "application/json",
@@ -202,14 +446,10 @@ then
                         3000
                     )
                     Charger2Enabled.postUpdate(ON)
-                    availablePower = availablePower.doubleValue - ROBOT2_REQUIRED_POWER.doubleValue
-                    status = "recovery"
-                    alert = "Recovered charger 2"
-                } else {
-                    if(newQueue == "") newQueue = "r2" else newQueue = newQueue + ",r2"
-                }
-            } else if(id == "r3") {
-                if(Charger3Enabled.state != ON && s3 == "charging" && ROBOT3_REQUIRED_POWER.doubleValue <= availablePower.doubleValue) {
+                    queue = queue.replace("r2,", "")
+                    queue = queue.replace(",r2", "")
+                    if(queue == "r2") queue = ""
+                } else if(selectedRobot == "r3") {
                     sendHttpPutRequest(
                         "http://localhost:3000/api/robots/r3/charger",
                         "application/json",
@@ -217,34 +457,43 @@ then
                         3000
                     )
                     Charger3Enabled.postUpdate(ON)
-                    availablePower = availablePower.doubleValue - ROBOT3_REQUIRED_POWER.doubleValue
-                    status = "recovery"
-                    alert = "Recovered charger 3"
-                } else {
-                    if(newQueue == "") newQueue = "r3" else newQueue = newQueue + ",r3"
+                    queue = queue.replace("r3,", "")
+                    queue = queue.replace(",r3", "")
+                    if(queue == "r3") queue = ""
                 }
+
+                predictiveRecoveryActionsValue = predictiveRecoveryActionsValue.doubleValue + 1.0
+                status = "recovery"
+                alert = "Predictive recovery activated"
+                decision = "recover_" + selectedRobot
+                reason = "Queued charger restored because predicted headroom is sufficient"
+            } else {
+                status = "hold"
+                alert = "Waiting for safer recovery window"
+                decision = "hold_queue"
+                reason = "Recovery queue exists, but safe predictive margin is still insufficient"
             }
         }
-
-        queue = newQueue
     }
 
-    GridFrequency.postUpdate(frequency)
-    GridTHD.postUpdate(thd)
+    var String rec1 = "idle"
+    var String rec2 = "idle"
+    var String rec3 = "idle"
 
-    if(meterVoltage.doubleValue > VOLTAGE_SWELL_LIMIT.doubleValue) {
-        status = "alert"
-        alert = "Voltage swell detected"
-    } else if(meterVoltage.doubleValue < VOLTAGE_SAG_LIMIT.doubleValue) {
-        status = "alert"
-        alert = "Voltage sag detected"
-    } else if(frequency.doubleValue < FREQUENCY_LOW_LIMIT.doubleValue) {
-        status = "alert"
-        alert = "Frequency deviation detected"
-    } else if(thd.doubleValue > THD_LIMIT.doubleValue) {
-        status = "alert"
-        alert = "Harmonic distortion detected"
-    }
+    if(s1 == "charging" && Charger1Enabled.state == ON) rec1 = "continue charging"
+    else if(queue.contains("r1")) rec1 = "wait in recovery queue"
+    else if(s1 == "charging" && Charger1Enabled.state == OFF) rec1 = "blocked by predictive control"
+    else if(b1.doubleValue < 100.0) rec1 = "monitor"
+
+    if(s2 == "charging" && Charger2Enabled.state == ON) rec2 = "continue charging"
+    else if(queue.contains("r2")) rec2 = "wait in recovery queue"
+    else if(s2 == "charging" && Charger2Enabled.state == OFF) rec2 = "blocked by predictive control"
+    else if(b2.doubleValue < 100.0) rec2 = "monitor"
+
+    if(s3 == "charging" && Charger3Enabled.state == ON) rec3 = "continue charging"
+    else if(queue.contains("r3")) rec3 = "wait in recovery queue"
+    else if(s3 == "charging" && Charger3Enabled.state == OFF) rec3 = "blocked by predictive control"
+    else if(b3.doubleValue < 100.0) rec3 = "monitor"
 
     var Number shedding = 0.0
     if(Charger1Enabled.state == OFF) shedding = shedding.doubleValue + 1.0
@@ -253,10 +502,39 @@ then
 
     if(queue == "") queue = "-"
 
+    GridFrequency.postUpdate(frequency)
+    GridTHD.postUpdate(thd)
     GridStatus.postUpdate(status)
     GridAlert.postUpdate(alert)
     LoadSheddingLevel.postUpdate(shedding)
     RecoveryQueue.postUpdate(queue)
+
+    PredictiveSystemStatus.postUpdate("active")
+    PredictiveDecision.postUpdate(decision)
+    PredictiveReason.postUpdate(reason)
+    PredictiveModelStatus.postUpdate(modelStatus)
+
+    PredictiveSmoothedPower.postUpdate(smoothedPower)
+    PredictivePowerTrend.postUpdate(delta)
+    PredictivePredictedPower.postUpdate(predictedPower)
+    PredictiveAvailablePower.postUpdate(availablePower)
+    PredictivePowerMargin.postUpdate(rawPowerMargin)
+    PredictiveAdaptiveSafetyMargin.postUpdate(adaptiveSafetyMarginValue)
+    PredictiveRiskScore.postUpdate(riskScore)
+    PredictiveLookAheadSeconds.postUpdate(LOOK_AHEAD_SECONDS)
+
+    PredictiveRobot1Priority.postUpdate(pr1)
+    PredictiveRobot2Priority.postUpdate(pr2)
+    PredictiveRobot3Priority.postUpdate(pr3)
+
+    PredictiveRobot1Recommendation.postUpdate(rec1)
+    PredictiveRobot2Recommendation.postUpdate(rec2)
+    PredictiveRobot3Recommendation.postUpdate(rec3)
+    PredictivePriorityQueue.postUpdate(priorityOrder)
+
+    PredictivePreventiveActions.postUpdate(predictivePreventiveActionsValue)
+    PredictiveRecoveryActions.postUpdate(predictiveRecoveryActionsValue)
+    PredictiveOverloadEvents.postUpdate(predictiveOverloadEventsValue)
 
     prevRobot1Status = s1
     prevRobot2Status = s2
@@ -265,4 +543,7 @@ then
     prevGridBatteryR1 = b1
     prevGridBatteryR2 = b2
     prevGridBatteryR3 = b3
+
+    prevSmoothedPowerValue = smoothedPower
+    prevActualStressState = actualStress
 end

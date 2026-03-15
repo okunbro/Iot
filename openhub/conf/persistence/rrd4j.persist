@@ -8,6 +8,12 @@ Strategies {
 Items {
     MeterTotalPower, MeterVoltage, MeterCurrent, MeterPowerFactor, MeterEnergy,
     MeterPeakPower, MeterCurrentCost, MeterMonthlyEstimate, MeterBaselinePower,
-    MeterRobot1ChargePower, MeterRobot2ChargePower, MeterRobot3ChargePower
+    MeterRobot1ChargePower, MeterRobot2ChargePower, MeterRobot3ChargePower,
+    GridFrequency, GridTHD, LoadSheddingLevel,
+    PredictiveSmoothedPower, PredictivePowerTrend, PredictivePredictedPower,
+    PredictiveAvailablePower, PredictivePowerMargin, PredictiveAdaptiveSafetyMargin,
+    PredictiveRiskScore, PredictiveLookAheadSeconds,
+    PredictiveRobot1Priority, PredictiveRobot2Priority, PredictiveRobot3Priority,
+    PredictivePreventiveActions, PredictiveRecoveryActions, PredictiveOverloadEvents
     : strategy = everyChange, everyMinute, restoreOnStartup
 }
