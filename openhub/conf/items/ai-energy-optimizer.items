@@ -1,0 +1,29 @@
+Switch AIOptimizerEnabled "AI optimizer enabled"
+
+String AIOptimizerStatus "AI optimizer status [%s]"
+String AILearningStatus "AI learning status [%s]"
+String AILoadPattern "AI load pattern [%s]"
+String AICurrentPriceClass "AI current price class [%s]"
+String AIPriceForecast24h "AI price forecast [%s]"
+String AIBestChargeWindow "AI best charge window [%s]"
+String AISchedulingDecision "AI scheduling decision [%s]"
+String AISchedulingReason "AI scheduling reason [%s]"
+String AIDeferredRobots "AI deferred robots [%s]"
+String AIRecommendedChargeOrder "AI recommended charge order [%s]"
+
+String AIRobot1Plan "Robot 1 AI plan [%s]"
+String AIRobot2Plan "Robot 2 AI plan [%s]"
+String AIRobot3Plan "Robot 3 AI plan [%s]"
+
+Number AIHistoricalAvg1h "Historical average 1h [%.1f W]"
+Number AIHistoricalAvg6h "Historical average 6h [%.1f W]"
+Number AIHistoricalAvg24h "Historical average 24h [%.1f W]"
+Number AIPeakThreshold "AI peak threshold [%.1f W]"
+
+Number AIRobot1Urgency "Robot 1 urgency [%.0f]"
+Number AIRobot2Urgency "Robot 2 urgency [%.0f]"
+Number AIRobot3Urgency "Robot 3 urgency [%.0f]"
+
+Number AIOptimizationActions "AI optimization actions [%.0f]"
+Number AIDeferredActions "AI deferred actions [%.0f]"
+Number AIResumedActions "AI resumed actions [%.0f]"

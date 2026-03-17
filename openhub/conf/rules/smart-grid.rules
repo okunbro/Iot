@@ -23,7 +23,7 @@ var Number MIN_SAFETY_MARGIN = 80.0
 var Number MAX_SAFETY_MARGIN = 700.0
 var Number LOOK_AHEAD_SECONDS = 5.0
 
-var Number adaptiveSafetyMarginValue = 250.0
+var Number adaptiveSafetyMarginValue = 120.0
 var Number prevSmoothedPowerValue = 0.0
 var Number predictivePreventiveActionsValue = 0.0
 var Number predictiveRecoveryActionsValue = 0.0
@@ -35,28 +35,9 @@ rule "Smart grid init"
 when
     System started
 then
-    sendHttpPutRequest(
-        "http://localhost:3000/api/robots/r1/charger",
-        "application/json",
-        "{\"enabled\":true}",
-        3000
-    )
-    sendHttpPutRequest(
-        "http://localhost:3000/api/robots/r2/charger",
-        "application/json",
-        "{\"enabled\":true}",
-        3000
-    )
-    sendHttpPutRequest(
-        "http://localhost:3000/api/robots/r3/charger",
-        "application/json",
-        "{\"enabled\":true}",
-        3000
-    )
-
-    Charger1Enabled.postUpdate(ON)
-    Charger2Enabled.postUpdate(ON)
-    Charger3Enabled.postUpdate(ON)
+    GridAllowChargeR1.postUpdate(ON)
+    GridAllowChargeR2.postUpdate(ON)
+    GridAllowChargeR3.postUpdate(ON)
 
     GridFrequency.postUpdate(GRID_NOMINAL_FREQUENCY)
     GridTHD.postUpdate(0)
@@ -147,6 +128,10 @@ then
 
     if(RecoveryQueue.state == NULL || RecoveryQueue.state == UNDEF) return;
 
+    if(GridAllowChargeR1.state == NULL || GridAllowChargeR1.state == UNDEF) return;
+    if(GridAllowChargeR2.state == NULL || GridAllowChargeR2.state == UNDEF) return;
+    if(GridAllowChargeR3.state == NULL || GridAllowChargeR3.state == UNDEF) return;
+
     val Number p1 = Float::parseFloat(MeterRobot1ChargePower.state.toString)
     val Number p2 = Float::parseFloat(MeterRobot2ChargePower.state.toString)
     val Number p3 = Float::parseFloat(MeterRobot3ChargePower.state.toString)
@@ -160,6 +145,10 @@ then
     val Number b1 = Float::parseFloat(Robot1Battery.state.toString)
     val Number b2 = Float::parseFloat(Robot2Battery.state.toString)
     val Number b3 = Float::parseFloat(Robot3Battery.state.toString)
+
+    val Boolean gridAllow1 = GridAllowChargeR1.state == ON
+    val Boolean gridAllow2 = GridAllowChargeR2.state == ON
+    val Boolean gridAllow3 = GridAllowChargeR3.state == ON
 
     var Number frequency = GRID_NOMINAL_FREQUENCY.doubleValue - (totalPower.doubleValue / 9000.0)
     if(frequency.doubleValue < 49.0) frequency = 49.0
@@ -192,9 +181,9 @@ then
     var Number predictedPower = smoothedPower.doubleValue + (delta.doubleValue * forecastWeight.doubleValue)
 
     var Number physicalCeiling = 0.0
-    if(s1 == "charging" && Charger1Enabled.state == ON) physicalCeiling = physicalCeiling.doubleValue + ROBOT1_REQUIRED_POWER.doubleValue
-    if(s2 == "charging" && Charger2Enabled.state == ON) physicalCeiling = physicalCeiling.doubleValue + ROBOT2_REQUIRED_POWER.doubleValue
-    if(s3 == "charging" && Charger3Enabled.state == ON) physicalCeiling = physicalCeiling.doubleValue + ROBOT3_REQUIRED_POWER.doubleValue
+    if(s1 == "charging" && gridAllow1 && Charger1Enabled.state == ON) physicalCeiling = physicalCeiling.doubleValue + ROBOT1_REQUIRED_POWER.doubleValue
+    if(s2 == "charging" && gridAllow2 && Charger2Enabled.state == ON) physicalCeiling = physicalCeiling.doubleValue + ROBOT2_REQUIRED_POWER.doubleValue
+    if(s3 == "charging" && gridAllow3 && Charger3Enabled.state == ON) physicalCeiling = physicalCeiling.doubleValue + ROBOT3_REQUIRED_POWER.doubleValue
 
     if(physicalCeiling.doubleValue < smoothedPower.doubleValue) physicalCeiling = smoothedPower.doubleValue
     if(predictedPower.doubleValue > physicalCeiling.doubleValue + 50.0) predictedPower = physicalCeiling.doubleValue + 50.0
@@ -222,9 +211,9 @@ then
     if(b2.doubleValue <= 20.0) pr2 = pr2.doubleValue + 15.0
     if(b3.doubleValue <= 20.0) pr3 = pr3.doubleValue + 15.0
 
-    if(s1 == "charging" && Charger1Enabled.state == OFF) pr1 = pr1.doubleValue + 20.0
-    if(s2 == "charging" && Charger2Enabled.state == OFF) pr2 = pr2.doubleValue + 20.0
-    if(s3 == "charging" && Charger3Enabled.state == OFF) pr3 = pr3.doubleValue + 20.0
+    if(s1 == "charging" && !gridAllow1) pr1 = pr1.doubleValue + 20.0
+    if(s2 == "charging" && !gridAllow2) pr2 = pr2.doubleValue + 20.0
+    if(s3 == "charging" && !gridAllow3) pr3 = pr3.doubleValue + 20.0
 
     if(queue.contains("r1")) pr1 = pr1.doubleValue + 10.0
     if(queue.contains("r2")) pr2 = pr2.doubleValue + 10.0
@@ -272,17 +261,17 @@ then
     var String shedCandidate = ""
     var Number shedCandidateBattery = -1.0
 
-    if(p1.doubleValue > 0 && Charger1Enabled.state == ON && s1 == "charging") {
+    if(p1.doubleValue > 0 && gridAllow1 && Charger1Enabled.state == ON && s1 == "charging") {
         shedCandidate = "r1"
         shedCandidateBattery = b1
     }
 
-    if(p2.doubleValue > 0 && Charger2Enabled.state == ON && s2 == "charging" && b2.doubleValue > shedCandidateBattery.doubleValue) {
+    if(p2.doubleValue > 0 && gridAllow2 && Charger2Enabled.state == ON && s2 == "charging" && b2.doubleValue > shedCandidateBattery.doubleValue) {
         shedCandidate = "r2"
         shedCandidateBattery = b2
     }
 
-    if(p3.doubleValue > 0 && Charger3Enabled.state == ON && s3 == "charging" && b3.doubleValue > shedCandidateBattery.doubleValue) {
+    if(p3.doubleValue > 0 && gridAllow3 && Charger3Enabled.state == ON && s3 == "charging" && b3.doubleValue > shedCandidateBattery.doubleValue) {
         shedCandidate = "r3"
         shedCandidateBattery = b3
     }
@@ -309,42 +298,24 @@ then
 
         if(shedCandidate != "") {
             if(shedCandidate == "r1") {
-                sendHttpPutRequest(
-                    "http://localhost:3000/api/robots/r1/charger",
-                    "application/json",
-                    "{\"enabled\":false}",
-                    3000
-                )
-                Charger1Enabled.postUpdate(OFF)
+                GridAllowChargeR1.postUpdate(OFF)
                 if(!queue.contains("r1")) {
                     if(queue == "") queue = "r1" else queue = queue + ",r1"
                 }
             } else if(shedCandidate == "r2") {
-                sendHttpPutRequest(
-                    "http://localhost:3000/api/robots/r2/charger",
-                    "application/json",
-                    "{\"enabled\":false}",
-                    3000
-                )
-                Charger2Enabled.postUpdate(OFF)
+                GridAllowChargeR2.postUpdate(OFF)
                 if(!queue.contains("r2")) {
                     if(queue == "") queue = "r2" else queue = queue + ",r2"
                 }
             } else if(shedCandidate == "r3") {
-                sendHttpPutRequest(
-                    "http://localhost:3000/api/robots/r3/charger",
-                    "application/json",
-                    "{\"enabled\":false}",
-                    3000
-                )
-                Charger3Enabled.postUpdate(OFF)
+                GridAllowChargeR3.postUpdate(OFF)
                 if(!queue.contains("r3")) {
                     if(queue == "") queue = "r3" else queue = queue + ",r3"
                 }
             }
 
             decision = "reactive_shed_" + shedCandidate
-            reason = reason + ", charger " + shedCandidate + " disabled"
+            reason = reason + ", grid permission removed for " + shedCandidate
         } else {
             decision = "alarm_only"
             reason = reason + ", no active charger available to disable"
@@ -356,35 +327,17 @@ then
 
         if(shedCandidate != "") {
             if(shedCandidate == "r1") {
-                sendHttpPutRequest(
-                    "http://localhost:3000/api/robots/r1/charger",
-                    "application/json",
-                    "{\"enabled\":false}",
-                    3000
-                )
-                Charger1Enabled.postUpdate(OFF)
+                GridAllowChargeR1.postUpdate(OFF)
                 if(!queue.contains("r1")) {
                     if(queue == "") queue = "r1" else queue = queue + ",r1"
                 }
             } else if(shedCandidate == "r2") {
-                sendHttpPutRequest(
-                    "http://localhost:3000/api/robots/r2/charger",
-                    "application/json",
-                    "{\"enabled\":false}",
-                    3000
-                )
-                Charger2Enabled.postUpdate(OFF)
+                GridAllowChargeR2.postUpdate(OFF)
                 if(!queue.contains("r2")) {
                     if(queue == "") queue = "r2" else queue = queue + ",r2"
                 }
             } else if(shedCandidate == "r3") {
-                sendHttpPutRequest(
-                    "http://localhost:3000/api/robots/r3/charger",
-                    "application/json",
-                    "{\"enabled\":false}",
-                    3000
-                )
-                Charger3Enabled.postUpdate(OFF)
+                GridAllowChargeR3.postUpdate(OFF)
                 if(!queue.contains("r3")) {
                     if(queue == "") queue = "r3" else queue = queue + ",r3"
                 }
@@ -392,7 +345,7 @@ then
 
             predictivePreventiveActionsValue = predictivePreventiveActionsValue.doubleValue + 1.0
             decision = "predictive_shed_" + shedCandidate
-            reason = "Predicted safe margin is too small, charger " + shedCandidate + " postponed"
+            reason = "Predicted safe margin is too small, grid permission removed for " + shedCandidate
         } else {
             decision = "hold"
             reason = "Predictive risk detected, but no active charger is available for shedding"
@@ -411,52 +364,34 @@ then
             var String selectedRobot = ""
             var Number selectedPriority = -1.0
 
-            if(queue.contains("r1") && Charger1Enabled.state != ON && s1 == "charging" && ROBOT1_REQUIRED_POWER.doubleValue <= safeBudget.doubleValue && pr1.doubleValue > selectedPriority.doubleValue) {
+            if(queue.contains("r1") && !gridAllow1 && s1 == "charging" && ROBOT1_REQUIRED_POWER.doubleValue <= safeBudget.doubleValue && pr1.doubleValue > selectedPriority.doubleValue) {
                 selectedRobot = "r1"
                 selectedPriority = pr1
             }
 
-            if(queue.contains("r2") && Charger2Enabled.state != ON && s2 == "charging" && ROBOT2_REQUIRED_POWER.doubleValue <= safeBudget.doubleValue && pr2.doubleValue > selectedPriority.doubleValue) {
+            if(queue.contains("r2") && !gridAllow2 && s2 == "charging" && ROBOT2_REQUIRED_POWER.doubleValue <= safeBudget.doubleValue && pr2.doubleValue > selectedPriority.doubleValue) {
                 selectedRobot = "r2"
                 selectedPriority = pr2
             }
 
-            if(queue.contains("r3") && Charger3Enabled.state != ON && s3 == "charging" && ROBOT3_REQUIRED_POWER.doubleValue <= safeBudget.doubleValue && pr3.doubleValue > selectedPriority.doubleValue) {
+            if(queue.contains("r3") && !gridAllow3 && s3 == "charging" && ROBOT3_REQUIRED_POWER.doubleValue <= safeBudget.doubleValue && pr3.doubleValue > selectedPriority.doubleValue) {
                 selectedRobot = "r3"
                 selectedPriority = pr3
             }
 
             if(selectedRobot != "") {
                 if(selectedRobot == "r1") {
-                    sendHttpPutRequest(
-                        "http://localhost:3000/api/robots/r1/charger",
-                        "application/json",
-                        "{\"enabled\":true}",
-                        3000
-                    )
-                    Charger1Enabled.postUpdate(ON)
+                    GridAllowChargeR1.postUpdate(ON)
                     queue = queue.replace("r1,", "")
                     queue = queue.replace(",r1", "")
                     if(queue == "r1") queue = ""
                 } else if(selectedRobot == "r2") {
-                    sendHttpPutRequest(
-                        "http://localhost:3000/api/robots/r2/charger",
-                        "application/json",
-                        "{\"enabled\":true}",
-                        3000
-                    )
-                    Charger2Enabled.postUpdate(ON)
+                    GridAllowChargeR2.postUpdate(ON)
                     queue = queue.replace("r2,", "")
                     queue = queue.replace(",r2", "")
                     if(queue == "r2") queue = ""
                 } else if(selectedRobot == "r3") {
-                    sendHttpPutRequest(
-                        "http://localhost:3000/api/robots/r3/charger",
-                        "application/json",
-                        "{\"enabled\":true}",
-                        3000
-                    )
-                    Charger3Enabled.postUpdate(ON)
+                    GridAllowChargeR3.postUpdate(ON)
                     queue = queue.replace("r3,", "")
                     queue = queue.replace(",r3", "")
                     if(queue == "r3") queue = ""
@@ -466,7 +401,7 @@ then
                 status = "recovery"
                 alert = "Predictive recovery activated"
                 decision = "recover_" + selectedRobot
-                reason = "Queued charger restored because predicted headroom is sufficient"
+                reason = "Queued grid permission restored because predicted headroom is sufficient"
             } else {
                 status = "hold"
                 alert = "Waiting for safer recovery window"
@@ -480,25 +415,25 @@ then
     var String rec2 = "idle"
     var String rec3 = "idle"
 
-    if(s1 == "charging" && Charger1Enabled.state == ON) rec1 = "continue charging"
+    if(s1 == "charging" && !gridAllow1) rec1 = "blocked by predictive control"
     else if(queue.contains("r1")) rec1 = "wait in recovery queue"
-    else if(s1 == "charging" && Charger1Enabled.state == OFF) rec1 = "blocked by predictive control"
-    else if(b1.doubleValue < 100.0) rec1 = "monitor"
+    else if(s1 == "charging" && Charger1Enabled.state == ON) rec1 = "continue charging"
+    else if(b1.doubleValue < 100.0) rec1 = "available for AI scheduling"
 
-    if(s2 == "charging" && Charger2Enabled.state == ON) rec2 = "continue charging"
+    if(s2 == "charging" && !gridAllow2) rec2 = "blocked by predictive control"
     else if(queue.contains("r2")) rec2 = "wait in recovery queue"
-    else if(s2 == "charging" && Charger2Enabled.state == OFF) rec2 = "blocked by predictive control"
-    else if(b2.doubleValue < 100.0) rec2 = "monitor"
+    else if(s2 == "charging" && Charger2Enabled.state == ON) rec2 = "continue charging"
+    else if(b2.doubleValue < 100.0) rec2 = "available for AI scheduling"
 
-    if(s3 == "charging" && Charger3Enabled.state == ON) rec3 = "continue charging"
+    if(s3 == "charging" && !gridAllow3) rec3 = "blocked by predictive control"
     else if(queue.contains("r3")) rec3 = "wait in recovery queue"
-    else if(s3 == "charging" && Charger3Enabled.state == OFF) rec3 = "blocked by predictive control"
-    else if(b3.doubleValue < 100.0) rec3 = "monitor"
+    else if(s3 == "charging" && Charger3Enabled.state == ON) rec3 = "continue charging"
+    else if(b3.doubleValue < 100.0) rec3 = "available for AI scheduling"
 
     var Number shedding = 0.0
-    if(Charger1Enabled.state == OFF) shedding = shedding.doubleValue + 1.0
-    if(Charger2Enabled.state == OFF) shedding = shedding.doubleValue + 1.0
-    if(Charger3Enabled.state == OFF) shedding = shedding.doubleValue + 1.0
+    if(!gridAllow1) shedding = shedding.doubleValue + 1.0
+    if(!gridAllow2) shedding = shedding.doubleValue + 1.0
+    if(!gridAllow3) shedding = shedding.doubleValue + 1.0
 
     if(queue == "") queue = "-"
 

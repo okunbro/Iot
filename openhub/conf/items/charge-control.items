@@ -1,0 +1,15 @@
+Switch GridAllowChargeR1 "Grid allow charge R1"
+Switch GridAllowChargeR2 "Grid allow charge R2"
+Switch GridAllowChargeR3 "Grid allow charge R3"
+
+Switch AIAllowChargeR1 "AI allow charge R1"
+Switch AIAllowChargeR2 "AI allow charge R2"
+Switch AIAllowChargeR3 "AI allow charge R3"
+
+String ChargeFinalDecisionR1 "Charge final decision R1 [%s]"
+String ChargeFinalDecisionR2 "Charge final decision R2 [%s]"
+String ChargeFinalDecisionR3 "Charge final decision R3 [%s]"
+
+String ChargeBlockReasonR1 "Charge block reason R1 [%s]"
+String ChargeBlockReasonR2 "Charge block reason R2 [%s]"
+String ChargeBlockReasonR3 "Charge block reason R3 [%s]"

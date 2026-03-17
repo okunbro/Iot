@@ -1,0 +1,370 @@
+var Number AI_DAY_TARIFF = 0.28
+var Number AI_NIGHT_TARIFF = 0.16
+
+var Number AI_CHARGE_REQUIRED_LEVEL = 30.0
+var Number AI_PEAK_BASE_THRESHOLD = 1800.0
+
+var Number aiOptimizationActionsValue = 0.0
+var Number aiDeferredActionsValue = 0.0
+var Number aiResumedActionsValue = 0.0
+
+rule "AI energy optimizer init"
+when
+    System started
+then
+    AIOptimizerEnabled.postUpdate(ON)
+
+    AIAllowChargeR1.postUpdate(ON)
+    AIAllowChargeR2.postUpdate(ON)
+    AIAllowChargeR3.postUpdate(ON)
+
+    if(AIOptimizationActions.state != NULL && AIOptimizationActions.state != UNDEF) {
+        aiOptimizationActionsValue = Float::parseFloat(AIOptimizationActions.state.toString)
+    }
+
+    if(AIDeferredActions.state != NULL && AIDeferredActions.state != UNDEF) {
+        aiDeferredActionsValue = Float::parseFloat(AIDeferredActions.state.toString)
+    }
+
+    if(AIResumedActions.state != NULL && AIResumedActions.state != UNDEF) {
+        aiResumedActionsValue = Float::parseFloat(AIResumedActions.state.toString)
+    }
+
+    AIOptimizerStatus.postUpdate("active")
+    AILearningStatus.postUpdate("history-based learning active")
+    AILoadPattern.postUpdate("waiting")
+    AICurrentPriceClass.postUpdate("unknown")
+    AIPriceForecast24h.postUpdate("Waiting for tariff analysis")
+    AIBestChargeWindow.postUpdate("23:00-07:00")
+    AISchedulingDecision.postUpdate("monitor")
+    AISchedulingReason.postUpdate("Waiting for first optimization cycle")
+    AIDeferredRobots.postUpdate("-")
+    AIRecommendedChargeOrder.postUpdate("r1 > r2 > r3")
+
+    AIRobot1Plan.postUpdate("waiting")
+    AIRobot2Plan.postUpdate("waiting")
+    AIRobot3Plan.postUpdate("waiting")
+
+    AIHistoricalAvg1h.postUpdate(0)
+    AIHistoricalAvg6h.postUpdate(0)
+    AIHistoricalAvg24h.postUpdate(0)
+    AIPeakThreshold.postUpdate(AI_PEAK_BASE_THRESHOLD)
+
+    AIRobot1Urgency.postUpdate(0)
+    AIRobot2Urgency.postUpdate(0)
+    AIRobot3Urgency.postUpdate(0)
+
+    AIOptimizationActions.postUpdate(aiOptimizationActionsValue)
+    AIDeferredActions.postUpdate(aiDeferredActionsValue)
+    AIResumedActions.postUpdate(aiResumedActionsValue)
+end
+
+rule "AI learning and tariff forecast"
+when
+    System started or
+    Time cron "0 0/5 * * * ?" or
+    Item MeterCurrentTariff changed
+then
+    if(MeterTotalPower.state == NULL || MeterTotalPower.state == UNDEF) return;
+    if(MeterCurrentTariff.state == NULL || MeterCurrentTariff.state == UNDEF) return;
+
+    val Number totalPower = Float::parseFloat(MeterTotalPower.state.toString)
+
+    var Number avg1h = totalPower.doubleValue
+    var Number avg6h = totalPower.doubleValue
+    var Number avg24h = totalPower.doubleValue
+
+    val hist1h = MeterTotalPower.averageSince(now.minusHours(1), "rrd4j")
+    if(hist1h !== null) avg1h = Float::parseFloat(hist1h.toString)
+
+    val hist6h = MeterTotalPower.averageSince(now.minusHours(6), "rrd4j")
+    if(hist6h !== null) avg6h = Float::parseFloat(hist6h.toString)
+
+    val hist24h = MeterTotalPower.averageSince(now.minusHours(24), "rrd4j")
+    if(hist24h !== null) avg24h = Float::parseFloat(hist24h.toString)
+
+    var Number peakThreshold = avg24h.doubleValue * 1.15
+    if(peakThreshold.doubleValue < AI_PEAK_BASE_THRESHOLD.doubleValue) peakThreshold = AI_PEAK_BASE_THRESHOLD
+
+    var String loadPattern = "normal"
+    if(avg1h.doubleValue > peakThreshold.doubleValue) {
+        loadPattern = "peak"
+    } else if(avg1h.doubleValue < avg24h.doubleValue * 0.85) {
+        loadPattern = "low"
+    }
+
+    val String tariffName = MeterCurrentTariff.state.toString
+    var String currentPriceClass = "expensive"
+
+    if(tariffName == "night") {
+        currentPriceClass = "cheap"
+    } else if(tariffName == "day") {
+        currentPriceClass = "expensive"
+    } else {
+        currentPriceClass = "normal"
+    }
+
+    val hour = now.getHour
+    var String bestChargeWindow = "23:00-07:00"
+    var String priceForecast = "Next cheap window: 23:00-07:00"
+
+    if(hour >= 23 || hour < 7) {
+        bestChargeWindow = "now"
+        priceForecast = "Night tariff active now, current window is cheapest"
+    }
+
+    AILearningStatus.postUpdate("history-based learning active")
+    AILoadPattern.postUpdate(loadPattern)
+    AICurrentPriceClass.postUpdate(currentPriceClass)
+    AIPriceForecast24h.postUpdate(priceForecast)
+    AIBestChargeWindow.postUpdate(bestChargeWindow)
+
+    AIHistoricalAvg1h.postUpdate(avg1h)
+    AIHistoricalAvg6h.postUpdate(avg6h)
+    AIHistoricalAvg24h.postUpdate(avg24h)
+    AIPeakThreshold.postUpdate(peakThreshold)
+end
+
+rule "AI scheduling and battery optimization"
+when
+    System started or
+    Time cron "0/30 * * * * ?" or
+    Item MeterCurrentTariff changed or
+    Item Robot1Battery changed or
+    Item Robot2Battery changed or
+    Item Robot3Battery changed
+then
+    if(AIOptimizerEnabled.state == NULL || AIOptimizerEnabled.state == UNDEF) return;
+
+    if(AIAllowChargeR1.state == NULL || AIAllowChargeR1.state == UNDEF) return;
+    if(AIAllowChargeR2.state == NULL || AIAllowChargeR2.state == UNDEF) return;
+    if(AIAllowChargeR3.state == NULL || AIAllowChargeR3.state == UNDEF) return;
+
+    if(GridStatus.state == NULL || GridStatus.state == UNDEF) return;
+    if(RecoveryQueue.state == NULL || RecoveryQueue.state == UNDEF) return;
+    if(MeterCurrentTariff.state == NULL || MeterCurrentTariff.state == UNDEF) return;
+    if(Charger1Enabled.state == NULL || Charger1Enabled.state == UNDEF) return;
+    if(Charger2Enabled.state == NULL || Charger2Enabled.state == UNDEF) return;
+    if(Charger3Enabled.state == NULL || Charger3Enabled.state == UNDEF) return;
+    if(Robot1Status.state == NULL || Robot1Status.state == UNDEF) return;
+    if(Robot2Status.state == NULL || Robot2Status.state == UNDEF) return;
+    if(Robot3Status.state == NULL || Robot3Status.state == UNDEF) return;
+    if(Robot1Battery.state == NULL || Robot1Battery.state == UNDEF) return;
+    if(Robot2Battery.state == NULL || Robot2Battery.state == UNDEF) return;
+    if(Robot3Battery.state == NULL || Robot3Battery.state == UNDEF) return;
+    if(AILoadPattern.state == NULL || AILoadPattern.state == UNDEF) return;
+
+    if(AIOptimizerEnabled.state != ON) {
+        AIAllowChargeR1.postUpdate(ON)
+        AIAllowChargeR2.postUpdate(ON)
+        AIAllowChargeR3.postUpdate(ON)
+
+        AIOptimizerStatus.postUpdate("disabled")
+        AISchedulingDecision.postUpdate("manual")
+        AISchedulingReason.postUpdate("AI optimizer is disabled")
+        AIDeferredRobots.postUpdate("-")
+        AIRecommendedChargeOrder.postUpdate("r1 > r2 > r3")
+        return;
+    }
+
+    val String s1 = Robot1Status.state.toString
+    val String s2 = Robot2Status.state.toString
+    val String s3 = Robot3Status.state.toString
+
+    val Number b1 = Float::parseFloat(Robot1Battery.state.toString)
+    val Number b2 = Float::parseFloat(Robot2Battery.state.toString)
+    val Number b3 = Float::parseFloat(Robot3Battery.state.toString)
+
+    val String tariffName = MeterCurrentTariff.state.toString
+    val String gridStatus = GridStatus.state.toString
+    val String gridQueue = RecoveryQueue.state.toString
+    val String loadPattern = AILoadPattern.state.toString
+
+    val Boolean cheapNow = tariffName == "night"
+    val Boolean gridProtectionBusy = gridStatus == "alert" || gridStatus == "predictive" || gridQueue != "-"
+
+    var String deferred = "-"
+    if(AIDeferredRobots.state != NULL && AIDeferredRobots.state != UNDEF) deferred = AIDeferredRobots.state.toString
+    if(deferred == "-") deferred = ""
+
+    var Boolean resumedByThreshold = false
+    var Boolean resumedByCheapWindow = false
+    var Boolean deferredAnyRobot = false
+
+    if(b1.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue && AIAllowChargeR1.state != ON) {
+        AIAllowChargeR1.postUpdate(ON)
+        deferred = deferred.replace("r1,", "")
+        deferred = deferred.replace(",r1", "")
+        if(deferred == "r1") deferred = ""
+        aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
+        aiResumedActionsValue = aiResumedActionsValue.doubleValue + 1.0
+        resumedByThreshold = true
+    }
+
+    if(b2.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue && AIAllowChargeR2.state != ON) {
+        AIAllowChargeR2.postUpdate(ON)
+        deferred = deferred.replace("r2,", "")
+        deferred = deferred.replace(",r2", "")
+        if(deferred == "r2") deferred = ""
+        aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
+        aiResumedActionsValue = aiResumedActionsValue.doubleValue + 1.0
+        resumedByThreshold = true
+    }
+
+    if(b3.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue && AIAllowChargeR3.state != ON) {
+        AIAllowChargeR3.postUpdate(ON)
+        deferred = deferred.replace("r3,", "")
+        deferred = deferred.replace(",r3", "")
+        if(deferred == "r3") deferred = ""
+        aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
+        aiResumedActionsValue = aiResumedActionsValue.doubleValue + 1.0
+        resumedByThreshold = true
+    }
+
+    if(cheapNow) {
+        if(deferred.contains("r1") && AIAllowChargeR1.state != ON) {
+            AIAllowChargeR1.postUpdate(ON)
+            deferred = deferred.replace("r1,", "")
+            deferred = deferred.replace(",r1", "")
+            if(deferred == "r1") deferred = ""
+            aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
+            aiResumedActionsValue = aiResumedActionsValue.doubleValue + 1.0
+            resumedByCheapWindow = true
+        }
+
+        if(deferred.contains("r2") && AIAllowChargeR2.state != ON) {
+            AIAllowChargeR2.postUpdate(ON)
+            deferred = deferred.replace("r2,", "")
+            deferred = deferred.replace(",r2", "")
+            if(deferred == "r2") deferred = ""
+            aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
+            aiResumedActionsValue = aiResumedActionsValue.doubleValue + 1.0
+            resumedByCheapWindow = true
+        }
+
+        if(deferred.contains("r3") && AIAllowChargeR3.state != ON) {
+            AIAllowChargeR3.postUpdate(ON)
+            deferred = deferred.replace("r3,", "")
+            deferred = deferred.replace(",r3", "")
+            if(deferred == "r3") deferred = ""
+            aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
+            aiResumedActionsValue = aiResumedActionsValue.doubleValue + 1.0
+            resumedByCheapWindow = true
+        }
+    } else if(!gridProtectionBusy) {
+        if(Charger1Enabled.state == ON && AIAllowChargeR1.state == ON && s1 == "charging" && b1.doubleValue > AI_CHARGE_REQUIRED_LEVEL.doubleValue && !deferred.contains("r1")) {
+            AIAllowChargeR1.postUpdate(OFF)
+            if(deferred == "") deferred = "r1" else deferred = deferred + ",r1"
+            aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
+            aiDeferredActionsValue = aiDeferredActionsValue.doubleValue + 1.0
+            deferredAnyRobot = true
+        }
+
+        if(Charger2Enabled.state == ON && AIAllowChargeR2.state == ON && s2 == "charging" && b2.doubleValue > AI_CHARGE_REQUIRED_LEVEL.doubleValue && !deferred.contains("r2")) {
+            AIAllowChargeR2.postUpdate(OFF)
+            if(deferred == "") deferred = "r2" else deferred = deferred + ",r2"
+            aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
+            aiDeferredActionsValue = aiDeferredActionsValue.doubleValue + 1.0
+            deferredAnyRobot = true
+        }
+
+        if(Charger3Enabled.state == ON && AIAllowChargeR3.state == ON && s3 == "charging" && b3.doubleValue > AI_CHARGE_REQUIRED_LEVEL.doubleValue && !deferred.contains("r3")) {
+            AIAllowChargeR3.postUpdate(OFF)
+            if(deferred == "") deferred = "r3" else deferred = deferred + ",r3"
+            aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
+            aiDeferredActionsValue = aiDeferredActionsValue.doubleValue + 1.0
+            deferredAnyRobot = true
+        }
+    }
+
+    var Number u1 = 100.0 - b1.doubleValue
+    var Number u2 = 100.0 - b2.doubleValue
+    var Number u3 = 100.0 - b3.doubleValue
+
+    if(b1.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue) u1 = u1.doubleValue + 40.0
+    if(b2.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue) u2 = u2.doubleValue + 40.0
+    if(b3.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue) u3 = u3.doubleValue + 40.0
+
+    if(deferred.contains("r1")) u1 = u1.doubleValue + 10.0
+    if(deferred.contains("r2")) u2 = u2.doubleValue + 10.0
+    if(deferred.contains("r3")) u3 = u3.doubleValue + 10.0
+
+    var String recommendedOrder = ""
+    if(u1.doubleValue >= u2.doubleValue && u1.doubleValue >= u3.doubleValue) {
+        if(u2.doubleValue >= u3.doubleValue) recommendedOrder = "r1 > r2 > r3" else recommendedOrder = "r1 > r3 > r2"
+    } else if(u2.doubleValue >= u1.doubleValue && u2.doubleValue >= u3.doubleValue) {
+        if(u1.doubleValue >= u3.doubleValue) recommendedOrder = "r2 > r1 > r3" else recommendedOrder = "r2 > r3 > r1"
+    } else {
+        if(u1.doubleValue >= u2.doubleValue) recommendedOrder = "r3 > r1 > r2" else recommendedOrder = "r3 > r2 > r1"
+    }
+
+    var String decision = "monitor"
+    var String reason = "No optimization required"
+    var String status = "active"
+
+    if(resumedByThreshold) {
+        decision = "resume_low_battery"
+        reason = "AI never blocks charging when battery is 30% or lower"
+    } else if(resumedByCheapWindow) {
+        decision = "resume_cheap_window"
+        reason = "Cheap tariff window is active, deferred charging resumed"
+    } else if(gridProtectionBusy) {
+        status = "paused by grid protection"
+        decision = "yield_to_grid_control"
+        reason = "Predictive grid control has priority over economic scheduling"
+    } else if(deferredAnyRobot) {
+        decision = "defer_to_cheap_window"
+        reason = "Charging above 30% battery is moved out of expensive tariff window"
+    } else if(!cheapNow && loadPattern == "peak") {
+        decision = "peak_avoidance"
+        reason = "Current demand pattern is peak, charging should be minimized in expensive window"
+    } else if(!cheapNow) {
+        decision = "wait_for_cheap_window"
+        reason = "Current tariff is expensive, robots above 30% can wait"
+    } else if(cheapNow) {
+        decision = "charge_in_cheap_window"
+        reason = "Current tariff window is optimal for charging"
+    }
+
+    var String plan1 = "monitor"
+    var String plan2 = "monitor"
+    var String plan3 = "monitor"
+
+    if(b1.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue) plan1 = "charge required"
+    else if(AIAllowChargeR1.state == OFF || deferred.contains("r1")) plan1 = "deferred to cheap window"
+    else if(s1 == "charging" && Charger1Enabled.state == ON && cheapNow) plan1 = "charge now"
+    else if(s1 == "charging" && Charger1Enabled.state == ON) plan1 = "charging in expensive window"
+    else if(!cheapNow) plan1 = "waiting for cheap window"
+
+    if(b2.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue) plan2 = "charge required"
+    else if(AIAllowChargeR2.state == OFF || deferred.contains("r2")) plan2 = "deferred to cheap window"
+    else if(s2 == "charging" && Charger2Enabled.state == ON && cheapNow) plan2 = "charge now"
+    else if(s2 == "charging" && Charger2Enabled.state == ON) plan2 = "charging in expensive window"
+    else if(!cheapNow) plan2 = "waiting for cheap window"
+
+    if(b3.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue) plan3 = "charge required"
+    else if(AIAllowChargeR3.state == OFF || deferred.contains("r3")) plan3 = "deferred to cheap window"
+    else if(s3 == "charging" && Charger3Enabled.state == ON && cheapNow) plan3 = "charge now"
+    else if(s3 == "charging" && Charger3Enabled.state == ON) plan3 = "charging in expensive window"
+    else if(!cheapNow) plan3 = "waiting for cheap window"
+
+    if(deferred == "") deferred = "-"
+
+    AIOptimizerStatus.postUpdate(status)
+    AISchedulingDecision.postUpdate(decision)
+    AISchedulingReason.postUpdate(reason)
+    AIDeferredRobots.postUpdate(deferred)
+    AIRecommendedChargeOrder.postUpdate(recommendedOrder)
+
+    AIRobot1Urgency.postUpdate(u1)
+    AIRobot2Urgency.postUpdate(u2)
+    AIRobot3Urgency.postUpdate(u3)
+
+    AIRobot1Plan.postUpdate(plan1)
+    AIRobot2Plan.postUpdate(plan2)
+    AIRobot3Plan.postUpdate(plan3)
+
+    AIOptimizationActions.postUpdate(aiOptimizationActionsValue)
+    AIDeferredActions.postUpdate(aiDeferredActionsValue)
+    AIResumedActions.postUpdate(aiResumedActionsValue)
+end

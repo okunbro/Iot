@@ -14,6 +14,9 @@ Items {
     PredictiveAvailablePower, PredictivePowerMargin, PredictiveAdaptiveSafetyMargin,
     PredictiveRiskScore, PredictiveLookAheadSeconds,
     PredictiveRobot1Priority, PredictiveRobot2Priority, PredictiveRobot3Priority,
-    PredictivePreventiveActions, PredictiveRecoveryActions, PredictiveOverloadEvents
+    PredictivePreventiveActions, PredictiveRecoveryActions, PredictiveOverloadEvents,
+    AIHistoricalAvg1h, AIHistoricalAvg6h, AIHistoricalAvg24h, AIPeakThreshold,
+    AIRobot1Urgency, AIRobot2Urgency, AIRobot3Urgency,
+    AIOptimizationActions, AIDeferredActions, AIResumedActions
     : strategy = everyChange, everyMinute, restoreOnStartup
 }
