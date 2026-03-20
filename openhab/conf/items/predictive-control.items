@@ -1,0 +1,26 @@
+String PredictiveSystemStatus "Predictive system [%s]"
+String PredictiveDecision "Predictive decision [%s]"
+String PredictiveReason "Predictive reason [%s]"
+String PredictiveModelStatus "Model status [%s]"
+
+Number PredictiveSmoothedPower "Smoothed power [%.1f W]"
+Number PredictivePowerTrend "Power trend [%.1f W]"
+Number PredictivePredictedPower "Predicted power [%.1f W]"
+Number PredictiveAvailablePower "Available power [%.1f W]"
+Number PredictivePowerMargin "Safe power margin [%.1f W]"
+Number PredictiveAdaptiveSafetyMargin "Adaptive safety margin [%.1f W]"
+Number PredictiveRiskScore "Risk score [%.0f %%]"
+Number PredictiveLookAheadSeconds "Look-ahead window [%.0f s]"
+
+Number PredictiveRobot1Priority "Robot 1 priority [%.0f]"
+Number PredictiveRobot2Priority "Robot 2 priority [%.0f]"
+Number PredictiveRobot3Priority "Robot 3 priority [%.0f]"
+
+String PredictiveRobot1Recommendation "Robot 1 recommendation [%s]"
+String PredictiveRobot2Recommendation "Robot 2 recommendation [%s]"
+String PredictiveRobot3Recommendation "Robot 3 recommendation [%s]"
+String PredictivePriorityQueue "Priority order [%s]"
+
+Number PredictivePreventiveActions "Preventive actions [%.0f]"
+Number PredictiveRecoveryActions "Recovery actions [%.0f]"
+Number PredictiveOverloadEvents "Stress events [%.0f]"

@@ -1,0 +1,71 @@
+sitemap aienergyoptimizer label="AI Energy Optimizer"
+{
+    Frame label="AI optimizer" icon="settings" {
+        Switch item=AIOptimizerEnabled label="AI optimizer" icon="switch"
+        Text item=AIOptimizerStatus label="Optimizer status [%s]" icon="settings"
+        Text item=AISchedulingDecision label="Current decision [%s]" icon="switch"
+        Text item=AISchedulingReason label="Decision reason [%s]" icon="info"
+        Text item=AIDeferredRobots label="Deferred robots [%s]" icon="text"
+        Text item=AIRecommendedChargeOrder label="Recommended charge order [%s]" icon="text"
+    }
+
+    Frame label="Learning and tariff analysis" icon="line" {
+        Text item=AILearningStatus label="Learning status [%s]" icon="settings"
+        Text item=AILoadPattern label="Load pattern [%s]" icon="line"
+        Text item=AICurrentPriceClass label="Current price class [%s]" icon="time"
+        Text item=AIPriceForecast24h label="Price forecast [%s]" icon="calendar"
+        Text item=AIBestChargeWindow label="Best charge window [%s]" icon="clock"
+        Text item=AIHistoricalAvg1h label="Average load 1h [%.1f W]" icon="energy"
+        Text item=AIHistoricalAvg6h label="Average load 6h [%.1f W]" icon="energy"
+        Text item=AIHistoricalAvg24h label="Average load 24h [%.1f W]" icon="energy"
+        Text item=AIPeakThreshold label="Peak threshold [%.1f W]" icon="warning"
+    }
+
+    Frame label="Grid context" icon="energy" {
+        Text item=GridStatus label="Grid status [%s]" icon="qualityofservice"
+        Text item=GridAlert label="Grid alert [%s]" icon="warning"
+        Text item=MeterCurrentTariff label="Current tariff window [%s]" icon="time"
+        Text item=MeterTotalPower label="Current load [%.1f W]" icon="energy"
+        Text item=PredictivePredictedPower label="Predicted power [%.1f W]" icon="line"
+        Text item=PredictiveRiskScore label="Predictive risk [%.0f %%]" icon="warning"
+        Text item=RecoveryQueue label="Grid recovery queue [%s]" icon="text"
+    }
+
+    Frame label="Robot 1" icon="battery" {
+        Text item=Robot1Status label="Robot status [%s]" icon="text"
+        Text item=Robot1Battery label="Battery [%d %%]" icon="battery"
+        Text item=Charger1Enabled label="Charging enabled [%s]" icon="switch"
+        Text item=AIRobot1Urgency label="Urgency [%.0f]" icon="warning"
+        Text item=AIRobot1Plan label="AI plan [%s]" icon="info"
+        Text item=ChargeFinalDecisionR1 label="Final decision [%s]" icon="switch"
+        Text item=ChargeBlockReasonR1 label="Block reason [%s]" icon="info"
+    }
+
+    Frame label="Robot 2" icon="battery" {
+        Text item=Robot2Status label="Robot status [%s]" icon="text"
+        Text item=Robot2Battery label="Battery [%d %%]" icon="battery"
+        Text item=Charger2Enabled label="Charging enabled [%s]" icon="switch"
+        Text item=AIRobot2Urgency label="Urgency [%.0f]" icon="warning"
+        Text item=AIRobot2Plan label="AI plan [%s]" icon="info"
+        Text item=ChargeFinalDecisionR2 label="Final decision [%s]" icon="switch"
+        Text item=ChargeBlockReasonR2 label="Block reason [%s]" icon="info"
+    }
+
+    Frame label="Robot 3" icon="battery" {
+        Text item=Robot3Status label="Robot status [%s]" icon="text"
+        Text item=Robot3Battery label="Battery [%d %%]" icon="battery"
+        Text item=Charger3Enabled label="Charging enabled [%s]" icon="switch"
+        Text item=AIRobot3Urgency label="Urgency [%.0f]" icon="warning"
+        Text item=AIRobot3Plan label="AI plan [%s]" icon="info"
+        Text item=ChargeFinalDecisionR3 label="Final decision [%s]" icon="switch"
+        Text item=ChargeBlockReasonR3 label="Block reason [%s]" icon="info"
+    }
+
+    Frame label="Optimization statistics" icon="settings" {
+        Text item=AIOptimizationActions label="Optimization actions [%.0f]" icon="settings"
+        Text item=AIDeferredActions label="Deferred actions [%.0f]" icon="switch"
+        Text item=AIResumedActions label="Resumed actions [%.0f]" icon="switch"
+        Text item=MeterCurrentCost label="Current accumulated cost [%.4f €]" icon="text"
+        Text item=MeterMonthlyEstimate label="Monthly cost estimate [%.2f €]" icon="text"
+    }
+}

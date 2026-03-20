@@ -1,0 +1,35 @@
+sitemap smartmeter label="Smart Meter Analytics"
+{
+  Frame label="Real-time electrical parameters" {
+    Text item=MeterTotalPower icon="energy"
+    Text item=MeterVoltage icon="poweroutlet"
+    Text item=MeterCurrent icon="line"
+    Text item=MeterPowerFactor icon="settings"
+    Text item=MeterEnergy icon="energy"
+  }
+
+  Frame label="Robot charging disaggregation" {
+    Text item=MeterRobot1ChargePower icon="energy"
+    Text item=MeterRobot2ChargePower icon="energy"
+    Text item=MeterRobot3ChargePower icon="energy"
+  }
+
+  Frame label="Peak detection" {
+    Text item=MeterPeakPower icon="energy"
+    Text item=MeterPeakHours icon="clock"
+    Text item=MeterDemandCharge icon="price"
+    Chart item=MeterTotalPower period=D refresh=60000
+  }
+
+  Frame label="Cost calculations" {
+    Text item=MeterCurrentTariff icon="price"
+    Text item=MeterCurrentCost icon="price"
+    Text item=MeterMonthlyEstimate icon="price"
+    Text item=MeterSavingsTip icon="info"
+  }
+
+  Frame label="Analytics" {
+    Text item=MeterBaselinePower icon="line"
+    Chart item=MeterEnergy period=W refresh=60000
+  }
+}

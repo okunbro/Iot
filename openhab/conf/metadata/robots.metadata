@@ -1,0 +1,125 @@
+value: Robot1Status
+config:
+  label: Robot 1 Status
+  type: Property
+  thingType: RobotVacuum
+  semantic: status
+
+value: Robot1Battery
+config:
+  label: Robot 1 Battery
+  type: Property
+  thingType: RobotVacuum
+  semantic: battery
+
+value: Robot1CurrentTask
+config:
+  label: Robot 1 Current Task
+  type: Property
+  thingType: RobotVacuum
+  semantic: currentTask
+
+value: Robot1TaskCreate
+config:
+  label: Robot 1 Create Task
+  type: Action
+  thingType: RobotVacuum
+  semantic: createTask
+
+value: Robot1TaskUpdate
+config:
+  label: Robot 1 Update Task
+  type: Action
+  thingType: RobotVacuum
+  semantic: updateTask
+
+value: Robot1TaskDelete
+config:
+  label: Robot 1 Delete Task
+  type: Action
+  thingType: RobotVacuum
+  semantic: deleteTask
+
+value: Robot2Status
+config:
+  label: Robot 2 Status
+  type: Property
+  thingType: RobotVacuum
+  semantic: status
+
+value: Robot2Battery
+config:
+  label: Robot 2 Battery
+  type: Property
+  thingType: RobotVacuum
+  semantic: battery
+
+value: Robot2CurrentTask
+config:
+  label: Robot 2 Current Task
+  type: Property
+  thingType: RobotVacuum
+  semantic: currentTask
+
+value: Robot2TaskCreate
+config:
+  label: Robot 2 Create Task
+  type: Action
+  thingType: RobotVacuum
+  semantic: createTask
+
+value: Robot2TaskUpdate
+config:
+  label: Robot 2 Update Task
+  type: Action
+  thingType: RobotVacuum
+  semantic: updateTask
+
+value: Robot2TaskDelete
+config:
+  label: Robot 2 Delete Task
+  type: Action
+  thingType: RobotVacuum
+  semantic: deleteTask
+
+value: Robot3Status
+config:
+  label: Robot 3 Status
+  type: Property
+  thingType: RobotVacuum
+  semantic: status
+
+value: Robot3Battery
+config:
+  label: Robot 3 Battery
+  type: Property
+  thingType: RobotVacuum
+  semantic: battery
+
+value: Robot3CurrentTask
+config:
+  label: Robot 3 Current Task
+  type: Property
+  thingType: RobotVacuum
+  semantic: currentTask
+
+value: Robot3TaskCreate
+config:
+  label: Robot 3 Create Task
+  type: Action
+  thingType: RobotVacuum
+  semantic: createTask
+
+value: Robot3TaskUpdate
+config:
+  label: Robot 3 Update Task
+  type: Action
+  thingType: RobotVacuum
+  semantic: updateTask
+
+value: Robot3TaskDelete
+config:
+  label: Robot 3 Delete Task
+  type: Action
+  thingType: RobotVacuum
+  semantic: deleteTask

@@ -1,0 +1,70 @@
+services:
+  openhab:
+    image: openhab/openhab:latest
+    container_name: openhab
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      USER_ID: "9001"
+      GROUP_ID: "9001"
+      CRYPTO_POLICY: "unlimited"
+      EXTRA_JAVA_OPTS: "-Duser.timezone=${TZ}"
+    volumes:
+      - ./openhab/conf:/openhab/conf
+      - ./openhab/userdata:/openhab/userdata
+      - ./openhab/addons:/openhab/addons
+    depends_on:
+      - mosquitto
+      - influxdb
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "${MQTT_PORT}:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - openhab-net
+
+  influxdb:
+    image: influxdb:2
+    container_name: influxdb
+    restart: unless-stopped
+    ports:
+      - "${INFLUXDB_PORT}:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN}
+    volumes:
+      - ./influxdb/data:/var/lib/influxdb2
+    networks:
+      - openhab-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+    volumes:
+      - ./grafana/data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - influxdb
+    networks:
+      - openhab-net
+
+networks:
+  openhab-net:
+    driver: bridge

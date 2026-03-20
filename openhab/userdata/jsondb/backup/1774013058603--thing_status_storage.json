@@ -1,0 +1,6 @@
+{
+  "http:url:robot1": {
+    "class": "java.lang.String",
+    "value": ""
+  }
+}

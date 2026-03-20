@@ -1,0 +1,25 @@
+Strategies {
+    everyMinute : "0 * * * * ?"
+    everyChange : "everyChange"
+    restoreOnStartup : "restoreOnStartup"
+}
+
+Items {
+    Robot1Status : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot1Battery : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot1CurrentTask : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot1BatteryCapacity : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot1BatteryVoltage : strategy = everyChange, everyMinute, restoreOnStartup
+
+    Robot2Status : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot2Battery : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot2CurrentTask : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot2BatteryCapacity : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot2BatteryVoltage : strategy = everyChange, everyMinute, restoreOnStartup
+
+    Robot3Status : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot3Battery : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot3CurrentTask : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot3BatteryCapacity : strategy = everyChange, everyMinute, restoreOnStartup
+    Robot3BatteryVoltage : strategy = everyChange, everyMinute, restoreOnStartup
+}

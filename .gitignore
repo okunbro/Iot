@@ -1,0 +1,15 @@
+backups/
+
+influxdb/data/
+grafana/data/
+
+mosquitto/data/
+mosquitto/log/
+
+openhab/userdata/cache/
+openhab/userdata/logs/
+openhab/userdata/tmp/
+openhab/userdata/secrets/
+openhab/userdata/persistence/
+
+*.logs

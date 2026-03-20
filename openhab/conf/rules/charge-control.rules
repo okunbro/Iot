@@ -1,0 +1,179 @@
+rule "Charge control init"
+when
+    System started
+then
+    if(GridAllowChargeR1.state == NULL || GridAllowChargeR1.state == UNDEF) GridAllowChargeR1.postUpdate(ON)
+    if(GridAllowChargeR2.state == NULL || GridAllowChargeR2.state == UNDEF) GridAllowChargeR2.postUpdate(ON)
+    if(GridAllowChargeR3.state == NULL || GridAllowChargeR3.state == UNDEF) GridAllowChargeR3.postUpdate(ON)
+
+    if(AIAllowChargeR1.state == NULL || AIAllowChargeR1.state == UNDEF) AIAllowChargeR1.postUpdate(ON)
+    if(AIAllowChargeR2.state == NULL || AIAllowChargeR2.state == UNDEF) AIAllowChargeR2.postUpdate(ON)
+    if(AIAllowChargeR3.state == NULL || AIAllowChargeR3.state == UNDEF) AIAllowChargeR3.postUpdate(ON)
+
+    ChargeFinalDecisionR1.postUpdate("enabled")
+    ChargeFinalDecisionR2.postUpdate("enabled")
+    ChargeFinalDecisionR3.postUpdate("enabled")
+
+    ChargeBlockReasonR1.postUpdate("Allowed by grid and AI")
+    ChargeBlockReasonR2.postUpdate("Allowed by grid and AI")
+    ChargeBlockReasonR3.postUpdate("Allowed by grid and AI")
+end
+
+rule "Charge arbiter R1"
+when
+    System started or
+    Item GridAllowChargeR1 changed or
+    Item AIAllowChargeR1 changed
+then
+    if(GridAllowChargeR1.state == NULL || GridAllowChargeR1.state == UNDEF) return;
+    if(AIAllowChargeR1.state == NULL || AIAllowChargeR1.state == UNDEF) return;
+
+    val Boolean gridOk = GridAllowChargeR1.state == ON
+    val Boolean aiOk = AIAllowChargeR1.state == ON
+    val Boolean finalOn = gridOk && aiOk
+
+    var String reason = "Allowed by grid and AI"
+    var String decision = "enabled"
+
+    if(!gridOk && !aiOk) {
+        reason = "Blocked by grid protection and AI optimization"
+        decision = "blocked_by_grid_and_ai"
+    } else if(!gridOk) {
+        reason = "Blocked by grid protection"
+        decision = "blocked_by_grid"
+    } else if(!aiOk) {
+        reason = "Blocked by AI optimization"
+        decision = "blocked_by_ai"
+    }
+
+    ChargeBlockReasonR1.postUpdate(reason)
+    ChargeFinalDecisionR1.postUpdate(decision)
+
+    if(finalOn) {
+        if(Charger1Enabled.state == NULL || Charger1Enabled.state == UNDEF || Charger1Enabled.state != ON) {
+            sendHttpPutRequest(
+                "http://localhost:3000/api/robots/r1/charger",
+                "application/json",
+                "{\"enabled\":true}",
+                3000
+            )
+            Charger1Enabled.postUpdate(ON)
+        }
+    } else {
+        if(Charger1Enabled.state == NULL || Charger1Enabled.state == UNDEF || Charger1Enabled.state != OFF) {
+            sendHttpPutRequest(
+                "http://localhost:3000/api/robots/r1/charger",
+                "application/json",
+                "{\"enabled\":false}",
+                3000
+            )
+            Charger1Enabled.postUpdate(OFF)
+        }
+    }
+end
+
+rule "Charge arbiter R2"
+when
+    System started or
+    Item GridAllowChargeR2 changed or
+    Item AIAllowChargeR2 changed
+then
+    if(GridAllowChargeR2.state == NULL || GridAllowChargeR2.state == UNDEF) return;
+    if(AIAllowChargeR2.state == NULL || AIAllowChargeR2.state == UNDEF) return;
+
+    val Boolean gridOk = GridAllowChargeR2.state == ON
+    val Boolean aiOk = AIAllowChargeR2.state == ON
+    val Boolean finalOn = gridOk && aiOk
+
+    var String reason = "Allowed by grid and AI"
+    var String decision = "enabled"
+
+    if(!gridOk && !aiOk) {
+        reason = "Blocked by grid protection and AI optimization"
+        decision = "blocked_by_grid_and_ai"
+    } else if(!gridOk) {
+        reason = "Blocked by grid protection"
+        decision = "blocked_by_grid"
+    } else if(!aiOk) {
+        reason = "Blocked by AI optimization"
+        decision = "blocked_by_ai"
+    }
+
+    ChargeBlockReasonR2.postUpdate(reason)
+    ChargeFinalDecisionR2.postUpdate(decision)
+
+    if(finalOn) {
+        if(Charger2Enabled.state == NULL || Charger2Enabled.state == UNDEF || Charger2Enabled.state != ON) {
+            sendHttpPutRequest(
+                "http://localhost:3000/api/robots/r2/charger",
+                "application/json",
+                "{\"enabled\":true}",
+                3000
+            )
+            Charger2Enabled.postUpdate(ON)
+        }
+    } else {
+        if(Charger2Enabled.state == NULL || Charger2Enabled.state == UNDEF || Charger2Enabled.state != OFF) {
+            sendHttpPutRequest(
+                "http://localhost:3000/api/robots/r2/charger",
+                "application/json",
+                "{\"enabled\":false}",
+                3000
+            )
+            Charger2Enabled.postUpdate(OFF)
+        }
+    }
+end
+
+rule "Charge arbiter R3"
+when
+    System started or
+    Item GridAllowChargeR3 changed or
+    Item AIAllowChargeR3 changed
+then
+    if(GridAllowChargeR3.state == NULL || GridAllowChargeR3.state == UNDEF) return;
+    if(AIAllowChargeR3.state == NULL || AIAllowChargeR3.state == UNDEF) return;
+
+    val Boolean gridOk = GridAllowChargeR3.state == ON
+    val Boolean aiOk = AIAllowChargeR3.state == ON
+    val Boolean finalOn = gridOk && aiOk
+
+    var String reason = "Allowed by grid and AI"
+    var String decision = "enabled"
+
+    if(!gridOk && !aiOk) {
+        reason = "Blocked by grid protection and AI optimization"
+        decision = "blocked_by_grid_and_ai"
+    } else if(!gridOk) {
+        reason = "Blocked by grid protection"
+        decision = "blocked_by_grid"
+    } else if(!aiOk) {
+        reason = "Blocked by AI optimization"
+        decision = "blocked_by_ai"
+    }
+
+    ChargeBlockReasonR3.postUpdate(reason)
+    ChargeFinalDecisionR3.postUpdate(decision)
+
+    if(finalOn) {
+        if(Charger3Enabled.state == NULL || Charger3Enabled.state == UNDEF || Charger3Enabled.state != ON) {
+            sendHttpPutRequest(
+                "http://localhost:3000/api/robots/r3/charger",
+                "application/json",
+                "{\"enabled\":true}",
+                3000
+            )
+            Charger3Enabled.postUpdate(ON)
+        }
+    } else {
+        if(Charger3Enabled.state == NULL || Charger3Enabled.state == UNDEF || Charger3Enabled.state != OFF) {
+            sendHttpPutRequest(
+                "http://localhost:3000/api/robots/r3/charger",
+                "application/json",
+                "{\"enabled\":false}",
+                3000
+            )
+            Charger3Enabled.postUpdate(OFF)
+        }
+    }
+end

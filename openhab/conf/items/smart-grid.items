@@ -1,0 +1,12 @@
+String GridStatus "Grid status [%s]"
+String GridAlert "Grid alert [%s]"
+
+Number GridFrequency "Grid frequency [%.2f Hz]"
+Number GridTHD "Grid THD [%.1f %%]"
+
+Switch Charger1Enabled "Charger 1 enabled"
+Switch Charger2Enabled "Charger 2 enabled"
+Switch Charger3Enabled "Charger 3 enabled"
+
+Number LoadSheddingLevel "Load shedding level [%.0f]"
+String RecoveryQueue "Recovery queue [%s]"

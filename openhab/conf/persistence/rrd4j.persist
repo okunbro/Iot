@@ -1,0 +1,22 @@
+Strategies {
+    everyMinute : "0 * * * * ?"
+    everyHour : "0 0 * * * ?"
+    everyDay : "0 0 0 * * ?"
+    default = everyChange
+}
+
+Items {
+    MeterTotalPower, MeterVoltage, MeterCurrent, MeterPowerFactor, MeterEnergy,
+    MeterPeakPower, MeterCurrentCost, MeterMonthlyEstimate, MeterBaselinePower,
+    MeterRobot1ChargePower, MeterRobot2ChargePower, MeterRobot3ChargePower,
+    GridFrequency, GridTHD, LoadSheddingLevel,
+    PredictiveSmoothedPower, PredictivePowerTrend, PredictivePredictedPower,
+    PredictiveAvailablePower, PredictivePowerMargin, PredictiveAdaptiveSafetyMargin,
+    PredictiveRiskScore, PredictiveLookAheadSeconds,
+    PredictiveRobot1Priority, PredictiveRobot2Priority, PredictiveRobot3Priority,
+    PredictivePreventiveActions, PredictiveRecoveryActions, PredictiveOverloadEvents,
+    AIHistoricalAvg1h, AIHistoricalAvg6h, AIHistoricalAvg24h, AIPeakThreshold,
+    AIRobot1Urgency, AIRobot2Urgency, AIRobot3Urgency,
+    AIOptimizationActions, AIDeferredActions, AIResumedActions
+    : strategy = everyChange, everyMinute, restoreOnStartup
+}

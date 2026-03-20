@@ -1,0 +1,56 @@
+{
+  "daniil": {
+    "class": "org.openhab.core.auth.ManagedUser",
+    "value": {
+      "name": "daniil",
+      "passwordHash": "ezYmOrdu2ARaHpAzp6iYywmC80CXfak2VS2GLlDOPn6DvAswu3E0OuGePoN0UxmJ40INjXBPWciq1cYL5J6lmQ\u003d\u003d",
+      "passwordSalt": "miqZEH59Vmm9iBdO/xalvIGx1xh1dA/Bk698BABieqI907kcMIdGQ/zjr+SjJ01g0d+FAvLz5XIt93Z1PaEMAQ\u003d\u003d",
+      "roles": [
+        "administrator"
+      ],
+      "sessions": [
+        {
+          "sessionId": "5f02ba2a-1d24-4043-ba8d-e85ab00b95a5",
+          "refreshToken": "b03105d8ce2e4b11acd7f1d91e70c4d4",
+          "createdTime": "Mar 20, 2026, 1:53:33 PM",
+          "lastRefreshTime": "Mar 20, 2026, 2:22:45 PM",
+          "clientId": "http://localhost:8080",
+          "redirectUri": "http://localhost:8080",
+          "scope": "admin",
+          "sessionCookie": true
+        },
+        {
+          "sessionId": "f96752c4-722a-41f1-8e5d-e8bfa9dd621b",
+          "refreshToken": "b823719d019a4fe698db3bb2fc2efd51",
+          "createdTime": "Mar 20, 2026, 2:26:53 PM",
+          "lastRefreshTime": "Mar 20, 2026, 2:35:48 PM",
+          "clientId": "http://localhost:8080",
+          "redirectUri": "http://localhost:8080",
+          "scope": "admin",
+          "sessionCookie": true
+        },
+        {
+          "sessionId": "4e13d182-9dfc-4d2b-82ff-3829202578e4",
+          "refreshToken": "fd994f2fb6494542beb247c31b08f10e",
+          "createdTime": "Mar 20, 2026, 2:41:51 PM",
+          "lastRefreshTime": "Mar 20, 2026, 2:41:56 PM",
+          "clientId": "http://localhost:8080",
+          "redirectUri": "http://localhost:8080",
+          "scope": "admin",
+          "sessionCookie": true
+        },
+        {
+          "sessionId": "e6a673d5-ee1a-4d4d-b3f5-ca2f836fa581",
+          "refreshToken": "5cb3740ca8664a119c631a554d0801c6",
+          "createdTime": "Mar 20, 2026, 2:53:36 PM",
+          "lastRefreshTime": "Mar 20, 2026, 3:18:05 PM",
+          "clientId": "http://localhost:8080",
+          "redirectUri": "http://localhost:8080",
+          "scope": "admin",
+          "sessionCookie": true
+        }
+      ],
+      "apiTokens": []
+    }
+  }
+}
