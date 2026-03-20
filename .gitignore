@@ -1,8 +1,10 @@
+.env
+.env.local
+
 backups/
 
-influxdb/data/
 grafana/data/
-
+influxdb/data/
 mosquitto/data/
 mosquitto/log/
 
@@ -11,5 +13,8 @@ openhab/userdata/logs/
 openhab/userdata/tmp/
 openhab/userdata/secrets/
 openhab/userdata/persistence/
+openhab/userdata/jsondb/
 
-*.logs
+node_modules/
+
+*.log

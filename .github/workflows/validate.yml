@@ -1,0 +1,47 @@
+name: Configuration Validation Pipeline
+
+on:
+  push:
+    branches:
+      - pz15.1
+      - main
+      - master
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Validate docker-compose syntax
+        run: docker compose -f docker-compose.yml config
+
+      - name: Validate OpenHAB configuration
+        run: npm run validate:openhab
+
+      - name: Secret scan
+        run: npm run scan:secrets
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: 1
+          ignore-unfixed: true
+          severity: CRITICAL,HIGH
