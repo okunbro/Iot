@@ -407,3 +407,31 @@ then
         GatewayError.postUpdate("ERROR DELETE r3: request failed")
     }
 end
+
+rule "Vacuum UI sync tasks lists"
+when
+    System started or
+    Time cron "0/5 * * * * ?" or
+    Item GatewayLastAction changed
+then
+    try {
+        val r1 = sendHttpGetRequest("http://localhost:3000/api/robots/r1/tasks", 3000)
+        Robot1TasksJson.postUpdate(r1)
+    } catch(Throwable t) {
+        logWarn("vacuums-ui", "Failed to sync r1 tasks: {}", t.toString)
+    }
+
+    try {
+        val r2 = sendHttpGetRequest("http://localhost:3000/api/robots/r2/tasks", 3000)
+        Robot2TasksJson.postUpdate(r2)
+    } catch(Throwable t) {
+        logWarn("vacuums-ui", "Failed to sync r2 tasks: {}", t.toString)
+    }
+
+    try {
+        val r3 = sendHttpGetRequest("http://localhost:3000/api/robots/r3/tasks", 3000)
+        Robot3TasksJson.postUpdate(r3)
+    } catch(Throwable t) {
+        logWarn("vacuums-ui", "Failed to sync r3 tasks: {}", t.toString)
+    }
+end

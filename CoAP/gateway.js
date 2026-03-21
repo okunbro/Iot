@@ -10,6 +10,9 @@ const HTTP_PORT = 3000;
 const TASK_DURATION_SECONDS = 30;
 const BATTERY_NOMINAL_VOLTAGE = 14.4;
 
+const LOW_BATTERY_THRESHOLD = 10;
+const RESUME_CLEANING_THRESHOLD = 30;
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -126,10 +129,19 @@ function reconcileRobotState(robot) {
   const activeTask = getActiveTask(robot);
   const nextTask = getOldestPendingTask(robot);
 
-  if (robot.battery < 10) {
+  if (robot.battery < LOW_BATTERY_THRESHOLD) {
     if (activeTask) {
       activeTask.status = 'pending';
     }
+    robot.status = 'charging';
+    return;
+  }
+
+  if (
+    robot.status === 'charging' &&
+    nextTask &&
+    robot.battery < RESUME_CLEANING_THRESHOLD
+  ) {
     robot.status = 'charging';
     return;
   }
@@ -166,7 +178,7 @@ function tickRobot(robot) {
     robot.battery = Math.max(0, robot.battery - 1);
     activeTask.remainingSeconds = Math.max(0, activeTask.remainingSeconds - 1);
 
-    if (robot.battery < 10) {
+    if (robot.battery < LOW_BATTERY_THRESHOLD) {
       activeTask.status = 'pending';
       robot.status = 'charging';
       notifyStatus(robot.id);

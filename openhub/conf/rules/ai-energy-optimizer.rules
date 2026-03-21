@@ -3,6 +3,7 @@ var Number AI_NIGHT_TARIFF = 0.16
 
 var Number AI_CHARGE_REQUIRED_LEVEL = 30.0
 var Number AI_PEAK_BASE_THRESHOLD = 1800.0
+var Number AI_SOLAR_HIGH_THRESHOLD = 1200.0
 
 var Number aiOptimizationActionsValue = 0.0
 var Number aiDeferredActionsValue = 0.0
@@ -17,6 +18,10 @@ then
     AIAllowChargeR1.postUpdate(ON)
     AIAllowChargeR2.postUpdate(ON)
     AIAllowChargeR3.postUpdate(ON)
+
+    if(SolarGenerationPower.state == NULL || SolarGenerationPower.state == UNDEF) {
+        SolarGenerationPower.postUpdate(0)
+    }
 
     if(AIOptimizationActions.state != NULL && AIOptimizationActions.state != UNDEF) {
         aiOptimizationActionsValue = Float::parseFloat(AIOptimizationActions.state.toString)
@@ -63,12 +68,16 @@ rule "AI learning and tariff forecast"
 when
     System started or
     Time cron "0 0/5 * * * ?" or
-    Item MeterCurrentTariff changed
+    Item MeterCurrentTariff changed or
+    Item SolarGenerationPower changed
 then
     if(MeterTotalPower.state == NULL || MeterTotalPower.state == UNDEF) return;
     if(MeterCurrentTariff.state == NULL || MeterCurrentTariff.state == UNDEF) return;
+    if(SolarGenerationPower.state == NULL || SolarGenerationPower.state == UNDEF) return;
 
     val Number totalPower = Float::parseFloat(MeterTotalPower.state.toString)
+    val Number solarPower = Float::parseFloat(SolarGenerationPower.state.toString)
+    val Boolean solarHigh = solarPower.doubleValue >= AI_SOLAR_HIGH_THRESHOLD.doubleValue
 
     var Number avg1h = totalPower.doubleValue
     var Number avg6h = totalPower.doubleValue
@@ -98,6 +107,8 @@ then
 
     if(tariffName == "night") {
         currentPriceClass = "cheap"
+    } else if(solarHigh) {
+        currentPriceClass = "solar-assisted"
     } else if(tariffName == "day") {
         currentPriceClass = "expensive"
     } else {
@@ -111,6 +122,9 @@ then
     if(hour >= 23 || hour < 7) {
         bestChargeWindow = "now"
         priceForecast = "Night tariff active now, current window is cheapest"
+    } else if(solarHigh) {
+        bestChargeWindow = "now (solar)"
+        priceForecast = "Solar generation is high, charging is allowed despite expensive tariff"
     }
 
     AILearningStatus.postUpdate("history-based learning active")
@@ -132,7 +146,8 @@ when
     Item MeterCurrentTariff changed or
     Item Robot1Battery changed or
     Item Robot2Battery changed or
-    Item Robot3Battery changed
+    Item Robot3Battery changed or
+    Item SolarGenerationPower changed
 then
     if(AIOptimizerEnabled.state == NULL || AIOptimizerEnabled.state == UNDEF) return;
 
@@ -143,6 +158,7 @@ then
     if(GridStatus.state == NULL || GridStatus.state == UNDEF) return;
     if(RecoveryQueue.state == NULL || RecoveryQueue.state == UNDEF) return;
     if(MeterCurrentTariff.state == NULL || MeterCurrentTariff.state == UNDEF) return;
+    if(SolarGenerationPower.state == NULL || SolarGenerationPower.state == UNDEF) return;
     if(Charger1Enabled.state == NULL || Charger1Enabled.state == UNDEF) return;
     if(Charger2Enabled.state == NULL || Charger2Enabled.state == UNDEF) return;
     if(Charger3Enabled.state == NULL || Charger3Enabled.state == UNDEF) return;
@@ -180,7 +196,10 @@ then
     val String gridQueue = RecoveryQueue.state.toString
     val String loadPattern = AILoadPattern.state.toString
 
+    val Number solarPower = Float::parseFloat(SolarGenerationPower.state.toString)
     val Boolean cheapNow = tariffName == "night"
+    val Boolean solarHigh = solarPower.doubleValue >= AI_SOLAR_HIGH_THRESHOLD.doubleValue
+    val Boolean favorableChargeWindow = cheapNow || solarHigh
     val Boolean gridProtectionBusy = gridStatus == "alert" || gridStatus == "predictive" || gridQueue != "-"
 
     var String deferred = "-"
@@ -189,6 +208,7 @@ then
 
     var Boolean resumedByThreshold = false
     var Boolean resumedByCheapWindow = false
+    var Boolean resumedBySolarWindow = false
     var Boolean deferredAnyRobot = false
 
     if(b1.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue && AIAllowChargeR1.state != ON) {
@@ -221,7 +241,7 @@ then
         resumedByThreshold = true
     }
 
-    if(cheapNow) {
+    if(favorableChargeWindow) {
         if(deferred.contains("r1") && AIAllowChargeR1.state != ON) {
             AIAllowChargeR1.postUpdate(ON)
             deferred = deferred.replace("r1,", "")
@@ -229,7 +249,7 @@ then
             if(deferred == "r1") deferred = ""
             aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
             aiResumedActionsValue = aiResumedActionsValue.doubleValue + 1.0
-            resumedByCheapWindow = true
+            if(cheapNow) resumedByCheapWindow = true else resumedBySolarWindow = true
         }
 
         if(deferred.contains("r2") && AIAllowChargeR2.state != ON) {
@@ -239,7 +259,7 @@ then
             if(deferred == "r2") deferred = ""
             aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
             aiResumedActionsValue = aiResumedActionsValue.doubleValue + 1.0
-            resumedByCheapWindow = true
+            if(cheapNow) resumedByCheapWindow = true else resumedBySolarWindow = true
         }
 
         if(deferred.contains("r3") && AIAllowChargeR3.state != ON) {
@@ -249,7 +269,7 @@ then
             if(deferred == "r3") deferred = ""
             aiOptimizationActionsValue = aiOptimizationActionsValue.doubleValue + 1.0
             aiResumedActionsValue = aiResumedActionsValue.doubleValue + 1.0
-            resumedByCheapWindow = true
+            if(cheapNow) resumedByCheapWindow = true else resumedBySolarWindow = true
         }
     } else if(!gridProtectionBusy) {
         if(Charger1Enabled.state == ON && AIAllowChargeR1.state == ON && s1 == "charging" && b1.doubleValue > AI_CHARGE_REQUIRED_LEVEL.doubleValue && !deferred.contains("r1")) {
@@ -308,6 +328,9 @@ then
     } else if(resumedByCheapWindow) {
         decision = "resume_cheap_window"
         reason = "Cheap tariff window is active, deferred charging resumed"
+    } else if(resumedBySolarWindow) {
+        decision = "resume_solar_window"
+        reason = "Solar generation is high, deferred charging resumed during expensive tariff window"
     } else if(gridProtectionBusy) {
         status = "paused by grid protection"
         decision = "yield_to_grid_control"
@@ -315,15 +338,18 @@ then
     } else if(deferredAnyRobot) {
         decision = "defer_to_cheap_window"
         reason = "Charging above 30% battery is moved out of expensive tariff window"
-    } else if(!cheapNow && loadPattern == "peak") {
+    } else if(!cheapNow && !solarHigh && loadPattern == "peak") {
         decision = "peak_avoidance"
         reason = "Current demand pattern is peak, charging should be minimized in expensive window"
-    } else if(!cheapNow) {
-        decision = "wait_for_cheap_window"
-        reason = "Current tariff is expensive, robots above 30% can wait"
     } else if(cheapNow) {
         decision = "charge_in_cheap_window"
         reason = "Current tariff window is optimal for charging"
+    } else if(solarHigh) {
+        decision = "charge_from_solar"
+        reason = "Solar generation is high, charging is allowed during expensive tariff window"
+    } else if(!cheapNow) {
+        decision = "wait_for_cheap_window"
+        reason = "Current tariff is expensive and solar generation is insufficient"
     }
 
     var String plan1 = "monitor"
@@ -333,19 +359,25 @@ then
     if(b1.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue) plan1 = "charge required"
     else if(AIAllowChargeR1.state == OFF || deferred.contains("r1")) plan1 = "deferred to cheap window"
     else if(s1 == "charging" && Charger1Enabled.state == ON && cheapNow) plan1 = "charge now"
+    else if(s1 == "charging" && Charger1Enabled.state == ON && solarHigh) plan1 = "charge from solar"
     else if(s1 == "charging" && Charger1Enabled.state == ON) plan1 = "charging in expensive window"
+    else if(solarHigh) plan1 = "solar window available"
     else if(!cheapNow) plan1 = "waiting for cheap window"
 
     if(b2.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue) plan2 = "charge required"
     else if(AIAllowChargeR2.state == OFF || deferred.contains("r2")) plan2 = "deferred to cheap window"
     else if(s2 == "charging" && Charger2Enabled.state == ON && cheapNow) plan2 = "charge now"
+    else if(s2 == "charging" && Charger2Enabled.state == ON && solarHigh) plan2 = "charge from solar"
     else if(s2 == "charging" && Charger2Enabled.state == ON) plan2 = "charging in expensive window"
+    else if(solarHigh) plan2 = "solar window available"
     else if(!cheapNow) plan2 = "waiting for cheap window"
 
     if(b3.doubleValue <= AI_CHARGE_REQUIRED_LEVEL.doubleValue) plan3 = "charge required"
     else if(AIAllowChargeR3.state == OFF || deferred.contains("r3")) plan3 = "deferred to cheap window"
     else if(s3 == "charging" && Charger3Enabled.state == ON && cheapNow) plan3 = "charge now"
+    else if(s3 == "charging" && Charger3Enabled.state == ON && solarHigh) plan3 = "charge from solar"
     else if(s3 == "charging" && Charger3Enabled.state == ON) plan3 = "charging in expensive window"
+    else if(solarHigh) plan3 = "solar window available"
     else if(!cheapNow) plan3 = "waiting for cheap window"
 
     if(deferred == "") deferred = "-"

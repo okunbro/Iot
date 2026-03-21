@@ -30,3 +30,9 @@ String Robot3TaskDelete "Robot 3 delete task"
 
 String GatewayError "Gateway error [%s]"
 String GatewayLastAction "Gateway last action [%s]"
+
+String Robot1TasksJson "Robot 1 tasks JSON"
+String Robot2TasksJson "Robot 2 tasks JSON"
+String Robot3TasksJson "Robot 3 tasks JSON"
+
+Number SolarGenerationPower "Виробіток сонячних панелей [%.0f W]" <sun>
